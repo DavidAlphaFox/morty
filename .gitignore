@@ -28,8 +28,8 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
-# ASP.NET Scaffolding
-ScaffoldingReadMe.txt
+# ASP
+Scaffolding.NET ScaffoldingReadMe.txt
 
 # NuGet Packages
 *.nupkg
@@ -52,3 +52,33 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# macOS
+.DS_Store
+.Trashes
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Workspace directories (per-project Claude working directories)
+workspace/
+workspace/*/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Morty specific
+*.morty.db

@@ -1,0 +1,6 @@
+@Morty.Web_HostAddress = http://localhost:5025
+
+GET {{Morty.Web_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
