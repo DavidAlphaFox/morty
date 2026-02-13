@@ -1,0 +1,22 @@
+{
+  "name": "morty-client",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "solid-js": "^1.9.5",
+    "@thisbeyond/solid-dnd": "^0.7.5",
+    "lucide-solid": "^0.469.0",
+    "@microsoft/signalr": "^8.0.7"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.11.0",
+    "typescript": "^5.7.0"
+  }
+}

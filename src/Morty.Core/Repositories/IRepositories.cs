@@ -47,3 +47,19 @@ public interface IStoryEventRepository
     Task<StoryEvent> AddAsync(StoryEvent storyEvent, CancellationToken cancellationToken = default);
     Task<List<StoryEvent>> GetByStoryIdAsync(int storyId, CancellationToken cancellationToken = default);
 }
+
+public interface IProviderRepository
+{
+    Task<Provider?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+    Task<List<Provider>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<Provider?> GetDefaultAsync(CancellationToken cancellationToken = default);
+    Task<Provider> AddAsync(Provider provider, CancellationToken cancellationToken = default);
+    Task UpdateAsync(Provider provider, CancellationToken cancellationToken = default);
+    Task DeleteAsync(int id, CancellationToken cancellationToken = default);
+}
+
+public interface IExecutionOutputRepository
+{
+    Task<ExecutionOutput> AddAsync(ExecutionOutput output, CancellationToken cancellationToken = default);
+    Task<List<ExecutionOutput>> GetByIterationIdAsync(int iterationId, CancellationToken cancellationToken = default);
+}

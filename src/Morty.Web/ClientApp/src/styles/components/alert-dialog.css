@@ -1,0 +1,82 @@
+/* Alert Dialog Overlay */
+.happy-alert-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 1050);
+  background-color: var(--modal-overlay, rgba(0, 0, 0, 0.5));
+  animation: alert-dialog-overlay-in var(--transition-base) ease-out;
+}
+
+@keyframes alert-dialog-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Alert Dialog Content */
+.happy-alert-dialog-content {
+  position: fixed;
+  z-index: var(--z-modal, 1050);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  width: 100%;
+  max-width: 32rem;
+  max-height: calc(100vh - 2rem);
+  padding: var(--spacing-lg);
+  background-color: var(--modal-bg, var(--color-background));
+  color: var(--modal-fg, var(--color-foreground));
+  border: 1px solid var(--modal-border, var(--color-border));
+  border-radius: var(--modal-radius, var(--radius-lg));
+  box-shadow: var(--modal-shadow, var(--shadow-xl));
+  overflow-y: auto;
+  animation: alert-dialog-content-in var(--transition-base) ease-out;
+}
+
+@keyframes alert-dialog-content-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Alert Dialog Header */
+.happy-alert-dialog-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+/* Alert Dialog Title */
+.happy-alert-dialog-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--modal-fg, var(--color-foreground));
+  margin: 0;
+}
+
+/* Alert Dialog Description */
+.happy-alert-dialog-description {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+  line-height: var(--line-height-normal);
+  margin: 0;
+}
+
+/* Alert Dialog Footer */
+.happy-alert-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+}
+
+/* Alert Dialog Actions */
+.happy-alert-dialog-action {
+  display: inline-flex;
+}
+
+.happy-alert-dialog-cancel {
+  display: inline-flex;
+}

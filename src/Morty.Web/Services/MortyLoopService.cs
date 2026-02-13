@@ -4,17 +4,19 @@ using Microsoft.Extensions.Hosting;
 using Morty.Core.Entities;
 using Morty.Core.Interfaces;
 using Morty.Core.Repositories;
-using Morty.Core.Services;
 using Morty.Web.DTOs;
 using Morty.Web.Hubs;
 using Serilog;
 
 namespace Morty.Web.Services;
 
+/// <summary>
+/// Morty 循环服务 - 后台服务，编排整个开发循环
+/// </summary>
 public class MortyLoopService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IClaudeClient _claudeClient;
+    private readonly IClaudeProviderFactory _providerFactory;
     private readonly IResponseAnalyzer _responseAnalyzer;
     private readonly ICircuitBreaker _circuitBreaker;
     private readonly IRateLimiter _rateLimiter;
@@ -26,7 +28,7 @@ public class MortyLoopService : BackgroundService
 
     public MortyLoopService(
         IServiceScopeFactory scopeFactory,
-        IClaudeClient claudeClient,
+        IClaudeProviderFactory providerFactory,
         IResponseAnalyzer responseAnalyzer,
         ICircuitBreaker circuitBreaker,
         IRateLimiter rateLimiter,
@@ -35,7 +37,7 @@ public class MortyLoopService : BackgroundService
         int delaySeconds = 5)
     {
         _scopeFactory = scopeFactory;
-        _claudeClient = claudeClient;
+        _providerFactory = providerFactory;
         _responseAnalyzer = responseAnalyzer;
         _circuitBreaker = circuitBreaker;
         _rateLimiter = rateLimiter;
@@ -49,7 +51,7 @@ public class MortyLoopService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _isRunning = true;
-        _logger.Information("MortyLoopService starting...");
+        _logger.Information("MortyLoopService 启动中...");
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -57,7 +59,7 @@ public class MortyLoopService : BackgroundService
             {
                 if (!_circuitBreaker.CanExecute())
                 {
-                    _logger.Warning("Circuit breaker is open, waiting...");
+                    _logger.Warning("断路器已打开，等待中...");
                     await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
                     continue;
                 }
@@ -68,12 +70,12 @@ public class MortyLoopService : BackgroundService
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                _logger.Information("MortyLoopService stopping...");
+                _logger.Information("MortyLoopService 停止中...");
                 break;
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error in MortyLoopService");
+                _logger.Error(ex, "MortyLoopService 错误");
                 _circuitBreaker.RecordFailure();
                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
             }
@@ -82,6 +84,9 @@ public class MortyLoopService : BackgroundService
         _isRunning = false;
     }
 
+    /// <summary>
+    /// 处理下一个待处理的故事
+    /// </summary>
     private async Task ProcessNextStoryAsync(CancellationToken stoppingToken)
     {
         using var scope = _scopeFactory.CreateScope();
@@ -91,82 +96,115 @@ public class MortyLoopService : BackgroundService
         var planRepo = scope.ServiceProvider.GetRequiredService<IPlanRepository>();
         var verificationRepo = scope.ServiceProvider.GetRequiredService<IVerificationRepository>();
         var storyEventRepo = scope.ServiceProvider.GetRequiredService<IStoryEventRepository>();
+        var executionOutputRepo = scope.ServiceProvider.GetRequiredService<IExecutionOutputRepository>();
+        var providerRepo = scope.ServiceProvider.GetRequiredService<IProviderRepository>();
 
-        // Get next story to process
+        // 获取下一个待处理的故事
         var story = await storyRepo.GetNextPendingAsync(stoppingToken);
 
         if (story == null)
         {
-            _logger.Debug("No stories to process");
+            _logger.Debug("没有待处理的故事");
             return;
         }
 
-        _logger.Information("Processing story {StoryId}: {Title}", story.StoryId, story.Title);
+        _logger.Information("正在处理故事 {StoryId}: {Title}", story.StoryId, story.Title);
 
-        // Update status
-        story.Status = "InProgress";
+        // 确定是规划迭代还是执行迭代
+        var iterationCount = await storyRepo.GetIterationCountAsync(story.Id, stoppingToken);
+        var isPlanningPhase = iterationCount == 0;
+
+        // 根据阶段获取供应商
+        var provider = isPlanningPhase
+            ? _providerFactory.GetProviderForPlanType(PlanUsageType.Planning)
+            : _providerFactory.GetProviderForPlanType(PlanUsageType.Execution);
+
+        if (provider == null)
+        {
+            _logger.Error("故事 {StoryId} 没有可用的供应商", story.StoryId);
+            story.Status = "Failed";
+            await storyRepo.UpdateAsync(story, stoppingToken);
+            return;
+        }
+
+        // 获取或创建数据库中的供应商记录
+        var dbProvider = await providerRepo.GetAllAsync(stoppingToken)
+            .ContinueWith(t => t.Result.FirstOrDefault(p => p.Name == provider.Name), stoppingToken);
+
+        // 更新故事状态
+        story.Status = isPlanningPhase ? "Planning" : "InProgress";
         await storyRepo.UpdateAsync(story, stoppingToken);
 
-        // Get project PRD
+        // 获取项目 PRD
         var project = await projectRepo.GetByIdAsync(story.ProjectId, stoppingToken);
         if (project == null)
         {
-            _logger.Error("Project not found for story {StoryId}", story.StoryId);
+            _logger.Error("故事 {StoryId} 对应的项目未找到", story.StoryId);
             story.Status = "Failed";
             await storyRepo.UpdateAsync(story, stoppingToken);
             return;
         }
 
-        // Ensure working directory exists
+        // 确保工作目录存在
         if (!string.IsNullOrEmpty(project.WorkingDirectory) && !Directory.Exists(project.WorkingDirectory))
         {
-            _logger.Information("Creating working directory: {WorkingDirectory}", project.WorkingDirectory);
+            _logger.Information("创建工作目录: {WorkingDirectory}", project.WorkingDirectory);
             Directory.CreateDirectory(project.WorkingDirectory);
         }
 
-        // Check iteration count
-        var iterationCount = await storyRepo.GetIterationCountAsync(story.Id, stoppingToken);
-
         if (iterationCount >= _maxIterationsPerStory)
         {
-            _logger.Warning("Story {StoryId} reached max iterations", story.StoryId);
+            _logger.Warning("故事 {StoryId} 达到最大迭代次数", story.StoryId);
             story.Status = "Failed";
             await storyRepo.UpdateAsync(story, stoppingToken);
             return;
         }
 
-        // Wait for rate limiter
+        // 等待速率限制器
         await _rateLimiter.WaitForAvailabilityAsync(stoppingToken);
         _rateLimiter.RecordRequest();
 
-        // Create iteration
+        // 创建迭代
         var iteration = new Iteration
         {
             StoryId = story.Id,
             IterationNum = iterationCount + 1,
-            StartedAt = DateTime.UtcNow
+            StartedAt = DateTime.UtcNow,
+            ProviderId = dbProvider?.Id
         };
         await iterationRepo.AddAsync(iteration, stoppingToken);
 
         try
         {
-            // Build prompt
+            // 构建提示词
             var prompt = BuildPrompt(project.PrdJson, story, iterationCount);
 
-            // Call Claude with project's working directory
-            var workingDir = project.WorkingDirectory;
-            _logger.Debug("Using working directory: {WorkingDirectory}", workingDir);
-            var response = await _claudeClient.SendMessageWithContextAsync(
-                prompt,
-                workingDir,
-                stoppingToken);
+            // 调用供应商
+            _logger.Information("使用供应商: {Provider} 用于 {Phase}", provider.Name, isPlanningPhase ? "规划" : "执行");
+            var request = new ProviderRequest(prompt);
+            var response = await provider.SendMessageAsync(request, stoppingToken);
 
             iteration.CompletedAt = DateTime.UtcNow;
             iteration.DurationMs = (long)(iteration.CompletedAt.Value - iteration.StartedAt).TotalMilliseconds;
             iteration.Output = response.Content;
+            iteration.CostUsd = response.CostUsd;
             await iterationRepo.UpdateAsync(iteration, stoppingToken);
 
-            // Broadcast iteration completion via SignalR
+            // 保存执行输出
+            var executionOutput = new ExecutionOutput
+            {
+                IterationId = iteration.Id,
+                ProviderId = dbProvider?.Id,
+                Prompt = prompt,
+                Response = response.Content,
+                ParsedOutput = response.Content,
+                DurationMs = iteration.DurationMs.HasValue ? (int)iteration.DurationMs.Value : null,
+                CostUsd = response.CostUsd,
+                CreatedAt = DateTime.UtcNow
+            };
+            await executionOutputRepo.AddAsync(executionOutput, stoppingToken);
+
+            // 通过 SignalR 广播迭代完成
             var iterationDto = new IterationDto
             {
                 Id = iteration.Id,
@@ -179,10 +217,10 @@ public class MortyLoopService : BackgroundService
             };
             await MortyHub.Broadcaster.NotifyIterationComplete(iterationDto);
 
-            // Analyze response
+            // 分析响应
             var analysis = _responseAnalyzer.Analyze(response.Content);
 
-            // Record verification
+            // 记录验证
             var verification = new Verification
             {
                 IterationId = iteration.Id,
@@ -193,8 +231,8 @@ public class MortyLoopService : BackgroundService
             };
             await verificationRepo.AddAsync(verification, stoppingToken);
 
-            // Extract and save plan if this is first iteration
-            if (iterationCount == 0)
+            // 如果是第一次迭代（规划阶段），提取并保存计划
+            if (isPlanningPhase)
             {
                 var planResult = _responseAnalyzer.ExtractPlan(response.Content);
                 if (planResult != null)
@@ -203,29 +241,46 @@ public class MortyLoopService : BackgroundService
                     {
                         StoryId = story.Id,
                         PlanContent = planResult.Plan,
+                        Type = PlanType.Planning,
+                        ProviderId = dbProvider?.Id,
+                        Output = response.Content,
                         CreatedAt = DateTime.UtcNow
                     };
                     await planRepo.AddAsync(plan, stoppingToken);
                 }
             }
+            else
+            {
+                // 保存执行计划
+                var plan = new Plan
+                {
+                    StoryId = story.Id,
+                    PlanContent = $"迭代 {iteration.IterationNum} 执行",
+                    Type = PlanType.Execution,
+                    ProviderId = dbProvider?.Id,
+                    Output = response.Content,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await planRepo.AddAsync(plan, stoppingToken);
+            }
 
-            // Update story status based on analysis
+            // 根据分析结果更新故事状态
             if (analysis.IsComplete)
             {
                 story.Status = "Completed";
                 story.CompletedAt = DateTime.UtcNow;
                 _circuitBreaker.RecordSuccess();
-                _logger.Information("Story {StoryId} completed successfully", story.StoryId);
+                _logger.Information("故事 {StoryId} 成功完成", story.StoryId);
             }
             else
             {
                 story.Status = "InProgress";
                 _circuitBreaker.RecordFailure();
-                _logger.Information("Story {StoryId} iteration {Iteration} completed, not yet done",
+                _logger.Information("故事 {StoryId} 迭代 {Iteration} 完成，尚未完成",
                     story.StoryId, iteration.IterationNum);
             }
 
-            // Record event
+            // 记录事件
             var storyEvent = new StoryEvent
             {
                 StoryId = story.Id,
@@ -235,14 +290,16 @@ public class MortyLoopService : BackgroundService
                 {
                     iteration = iteration.IterationNum,
                     complete = analysis.IsComplete,
-                    errors = analysis.HasErrors
+                    errors = analysis.HasErrors,
+                    provider = provider.Name,
+                    isPlanning = isPlanningPhase
                 })
             };
             await storyEventRepo.AddAsync(storyEvent, stoppingToken);
 
             await storyRepo.UpdateAsync(story, stoppingToken);
 
-            // Broadcast story update via SignalR
+            // 通过 SignalR 广播故事更新
             var storyDto = new StoryDto
             {
                 Id = story.Id,
@@ -258,7 +315,7 @@ public class MortyLoopService : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Error processing story {StoryId}", story.StoryId);
+            _logger.Error(ex, "处理故事 {StoryId} 时出错", story.StoryId);
             iteration.Output = ex.Message;
             await iterationRepo.UpdateAsync(iteration, stoppingToken);
             story.Status = "Failed";
@@ -267,27 +324,30 @@ public class MortyLoopService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// 构建提示词
+    /// </summary>
     private static string BuildPrompt(string prdJson, Story story, int iterationCount)
     {
         var iterationContext = iterationCount == 0
-            ? "This is the first iteration. Please analyze the requirements and create a plan."
-            : $"This is iteration {iterationCount + 1}. Please continue implementing.";
+            ? "这是第一次迭代。请分析需求并创建详细的实施计划。"
+            : $"这是第 {iterationCount + 1} 次迭代。请根据计划继续实施。";
 
         return $"""
-            You are working on implementing a user story.
+            您正在实现一个用户故事。
 
-            User Story: {story.Title}
-            Story ID: {story.StoryId}
+            用户故事: {story.Title}
+            故事 ID: {story.StoryId}
 
             {iterationContext}
 
-            Requirements (PRD):
+            需求 (PRD):
             {prdJson}
 
-            Please implement the changes and respond with:
-            1. What you did
-            2. Any files you modified
-            3. Whether implementation is complete or what remains
+            请实现更改并回复:
+            1. 您做了什么
+            2. 修改了哪些文件
+            3. 实现是否完成或还有什么待完成
             """;
     }
 }

@@ -20,4 +20,21 @@
     <ProjectReference Include="..\Morty.Infrastructure\Morty.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!-- Exclude ClientApp node_modules from build -->
+  <ItemGroup>
+    <Content Remove="ClientApp\node_modules\**" />
+    <None Remove="ClientApp\node_modules\**" />
+  </ItemGroup>
+
+  <!-- npm install before build if node_modules missing -->
+  <Target Name="NpmInstall" BeforeTargets="Build" Condition="!Exists('ClientApp\node_modules')">
+    <Exec Command="npm install" WorkingDirectory="ClientApp" />
+  </Target>
+
+  <!-- Build client app before publish -->
+  <Target Name="PublishClientApp" BeforeTargets="Publish">
+    <Exec Command="npm install" WorkingDirectory="ClientApp" />
+    <Exec Command="npm run build" WorkingDirectory="ClientApp" />
+  </Target>
+
 </Project>

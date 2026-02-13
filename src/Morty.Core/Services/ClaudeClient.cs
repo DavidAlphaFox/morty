@@ -6,6 +6,9 @@ using Serilog;
 
 namespace Morty.Core.Services;
 
+/// <summary>
+/// Claude CLI 客户端封装
+/// </summary>
 public class ClaudeClient : IClaudeClient
 {
     private readonly string _command;
@@ -25,11 +28,17 @@ public class ClaudeClient : IClaudeClient
         _logger = logger ?? Log.Logger;
     }
 
+    /// <summary>
+    /// 发送消息到 Claude CLI
+    /// </summary>
     public async Task<ClaudeResponse> SendMessageAsync(string message, CancellationToken cancellationToken = default)
     {
         return await SendMessageWithContextAsync(message, ".", cancellationToken);
     }
 
+    /// <summary>
+    /// 使用指定项目路径发送消息到 Claude CLI
+    /// </summary>
     public async Task<ClaudeResponse> SendMessageWithContextAsync(
         string message,
         string projectPath,
@@ -57,19 +66,21 @@ public class ClaudeClient : IClaudeClient
 
             using var process = new Process { StartInfo = startInfo };
 
+            // 捕获标准输出
             process.OutputDataReceived += (_, e) =>
             {
                 if (e.Data != null)
                     output.AppendLine(e.Data);
             };
 
+            // 捕获标准错误
             process.ErrorDataReceived += (_, e) =>
             {
                 if (e.Data != null)
                     error.AppendLine(e.Data);
             };
 
-            _logger.Debug("Starting Claude process with message: {Message}", message.Substring(0, Math.Min(100, message.Length)));
+            _logger.Debug("启动 Claude 进程，消息: {Message}", message.Substring(0, Math.Min(100, message.Length)));
 
             process.Start();
             process.BeginOutputReadLine();
@@ -83,8 +94,8 @@ public class ClaudeClient : IClaudeClient
             if (!completed)
             {
                 try { process.Kill(entireProcessTree: true); } catch { }
-                _logger.Warning("Claude process timed out after {Timeout}", _timeout);
-                return new ClaudeResponse(output.ToString(), "Process timed out", -1, false);
+                _logger.Warning("Claude 进程超时: {Timeout}", _timeout);
+                return new ClaudeResponse(output.ToString(), "进程超时", -1, false);
             }
 
             var exitCode = process.ExitCode;
@@ -92,18 +103,21 @@ public class ClaudeClient : IClaudeClient
 
             if (!success)
             {
-                _logger.Warning("Claude process exited with code {ExitCode}", exitCode);
+                _logger.Warning("Claude 进程退出码: {ExitCode}", exitCode);
             }
 
             return new ClaudeResponse(output.ToString(), error.ToString(), exitCode, success);
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, "Failed to execute Claude process");
+            _logger.Error(ex, "执行 Claude 进程失败");
             return new ClaudeResponse(output.ToString(), ex.Message, -1, false);
         }
     }
 
+    /// <summary>
+    /// 流式发送消息到 Claude CLI
+    /// </summary>
     public async IAsyncEnumerable<string> StreamMessageAsync(
         string message,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -141,6 +155,9 @@ public class ClaudeClient : IClaudeClient
         try { process.Kill(entireProcessTree: true); } catch { }
     }
 
+    /// <summary>
+    /// 等待进程退出
+    /// </summary>
     private static async Task<bool> WaitForExitAsync(Process process, TimeSpan timeout, CancellationToken cancellationToken)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

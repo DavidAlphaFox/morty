@@ -2,6 +2,9 @@ using Morty.Core.Interfaces;
 
 namespace Morty.Core.Services;
 
+/// <summary>
+/// 断路器 - 防止无限重试循环
+/// </summary>
 public class CircuitBreaker : ICircuitBreaker
 {
     private readonly int _failureThreshold;
@@ -18,6 +21,9 @@ public class CircuitBreaker : ICircuitBreaker
         _resetTimeout = TimeSpan.FromMinutes(resetMinutes);
     }
 
+    /// <summary>
+    /// 检查是否可以执行请求
+    /// </summary>
     public bool CanExecute()
     {
         if (_state == CircuitBreakerState.Closed)
@@ -25,6 +31,7 @@ public class CircuitBreaker : ICircuitBreaker
 
         if (_state == CircuitBreakerState.Open)
         {
+            // 检查是否已超过重置时间
             if (_lastFailureTime.HasValue &&
                 DateTime.UtcNow - _lastFailureTime.Value > _resetTimeout)
             {
@@ -34,16 +41,22 @@ public class CircuitBreaker : ICircuitBreaker
             return false;
         }
 
-        // HalfOpen - allow one request
+        // 半开状态 - 允许一个请求
         return true;
     }
 
+    /// <summary>
+    /// 记录成功
+    /// </summary>
     public void RecordSuccess()
     {
         _failureCount = 0;
         _state = CircuitBreakerState.Closed;
     }
 
+    /// <summary>
+    /// 记录失败
+    /// </summary>
     public void RecordFailure()
     {
         _failureCount++;
@@ -55,6 +68,9 @@ public class CircuitBreaker : ICircuitBreaker
         }
     }
 
+    /// <summary>
+    /// 重置断路器
+    /// </summary>
     public void Reset()
     {
         _failureCount = 0;

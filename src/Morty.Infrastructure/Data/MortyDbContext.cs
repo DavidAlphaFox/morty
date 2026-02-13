@@ -15,6 +15,8 @@ public class MortyDbContext : DbContext
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<Verification> Verifications => Set<Verification>();
     public DbSet<StoryEvent> StoryEvents => Set<StoryEvent>();
+    public DbSet<Provider> Providers => Set<Provider>();
+    public DbSet<ExecutionOutput> ExecutionOutputs => Set<ExecutionOutput>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -50,17 +52,28 @@ public class MortyDbContext : DbContext
                 .WithMany(s => s.Iterations)
                 .HasForeignKey(e => e.StoryId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Provider)
+                .WithMany(p => p.Iterations)
+                .HasForeignKey(e => e.ProviderId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Plan>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.PlanContent).IsRequired();
+            entity.Property(e => e.Type).HasConversion<string>();
 
             entity.HasOne(e => e.Story)
                 .WithMany(s => s.Plans)
                 .HasForeignKey(e => e.StoryId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Provider)
+                .WithMany(p => p.Plans)
+                .HasForeignKey(e => e.ProviderId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Verification>(entity =>
@@ -83,6 +96,32 @@ public class MortyDbContext : DbContext
                 .WithMany(s => s.Events)
                 .HasForeignKey(e => e.StoryId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Provider>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Type).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.ApiUrl).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.Model).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Token).IsRequired();
+            entity.Property(e => e.ConfigJson);
+        });
+
+        modelBuilder.Entity<ExecutionOutput>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.HasOne(e => e.Iteration)
+                .WithMany(i => i.ExecutionOutputs)
+                .HasForeignKey(e => e.IterationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Provider)
+                .WithMany(p => p.ExecutionOutputs)
+                .HasForeignKey(e => e.ProviderId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

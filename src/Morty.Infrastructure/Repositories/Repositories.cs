@@ -219,3 +219,76 @@ public class StoryEventRepository : IStoryEventRepository
             .ToListAsync(cancellationToken);
     }
 }
+
+public class ProviderRepository : IProviderRepository
+{
+    private readonly MortyDbContext _context;
+
+    public ProviderRepository(MortyDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<Provider?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        return await _context.Providers.FindAsync([id], cancellationToken);
+    }
+
+    public async Task<List<Provider>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.Providers.ToListAsync(cancellationToken);
+    }
+
+    public async Task<Provider?> GetDefaultAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.Providers.FirstOrDefaultAsync(p => p.IsDefault, cancellationToken);
+    }
+
+    public async Task<Provider> AddAsync(Provider provider, CancellationToken cancellationToken = default)
+    {
+        _context.Providers.Add(provider);
+        await _context.SaveChangesAsync(cancellationToken);
+        return provider;
+    }
+
+    public async Task UpdateAsync(Provider provider, CancellationToken cancellationToken = default)
+    {
+        _context.Providers.Update(provider);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var provider = await _context.Providers.FindAsync([id], cancellationToken);
+        if (provider != null)
+        {
+            _context.Providers.Remove(provider);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+}
+
+public class ExecutionOutputRepository : IExecutionOutputRepository
+{
+    private readonly MortyDbContext _context;
+
+    public ExecutionOutputRepository(MortyDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<ExecutionOutput> AddAsync(ExecutionOutput output, CancellationToken cancellationToken = default)
+    {
+        _context.ExecutionOutputs.Add(output);
+        await _context.SaveChangesAsync(cancellationToken);
+        return output;
+    }
+
+    public async Task<List<ExecutionOutput>> GetByIterationIdAsync(int iterationId, CancellationToken cancellationToken = default)
+    {
+        return await _context.ExecutionOutputs
+            .Where(e => e.IterationId == iterationId)
+            .OrderByDescending(e => e.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+}
