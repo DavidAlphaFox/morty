@@ -220,13 +220,14 @@
 .morty-create-env-config-group-form__modal {
   position: relative;
   width: 90%;
-  max-width: 700px;
+  max-width: 800px;
   max-height: 90vh;
   background: var(--color-card-bg);
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 .morty-create-env-config-group-form__header {
@@ -259,6 +260,7 @@
 
 .morty-create-env-config-group-form__body {
   padding: 1.5rem;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -564,13 +566,14 @@
 .morty-create-env-config-rule-form__modal {
   position: relative;
   width: 90%;
-  max-width: 600px;
+  max-width: 700px;
   max-height: 90vh;
   background: var(--color-card-bg);
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 .morty-create-env-config-rule-form__header {
@@ -603,6 +606,7 @@
 
 .morty-create-env-config-rule-form__body {
   padding: 1.5rem;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 

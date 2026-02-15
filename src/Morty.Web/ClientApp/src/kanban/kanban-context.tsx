@@ -120,6 +120,11 @@ export const KanbanProvider: ParentComponent = (props) => {
   // 创建 SignalR 连接
   const signalr = createSignalRConnection(signalrCallbacks);
 
+  // 组件挂载时启动 SignalR 连接
+  createEffect(() => {
+    signalr.start();
+  });
+
   // 组件卸载时断开连接
   onCleanup(() => {
     signalr.stop();

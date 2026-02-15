@@ -15,6 +15,13 @@
   overflow-x: auto;
   padding: 20px;
   align-items: flex-start;
+  justify-content: center;
+}
+
+@media (min-width: 1200px) {
+  .happy-kanban__board {
+    padding: 32px;
+  }
 }
 
 /* Column */
@@ -614,6 +621,7 @@
   width: 100%;
   max-width: 420px;
   max-height: 90vh;
+  overflow-x: hidden;
   overflow-y: auto;
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
   margin: 20px;

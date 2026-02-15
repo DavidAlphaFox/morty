@@ -282,10 +282,11 @@ export interface StartPhaseDto {
 /**
  * 创建项目的数据传输对象
  * 用于 POST 请求创建新项目
+ * workingDirectory 为空时由后端自动生成
  */
 export interface CreateProjectDto {
   name: string;            // 项目名称
-  workingDirectory: string; // 工作目录路径
+  workingDirectory?: string; // 工作目录路径（可选，由后端自动生成）
   prdJson: string;        // 产品需求文档 (JSON 格式)
 }
 

@@ -1,30 +1,31 @@
 /**
- * Morty Color Palette — Dark theme optimized
+ * Morty Color Palette — Dark theme with emerald/jade green accent
+ * Inspired by minimal design with elegant teal/jade tones
  */
 
 :root {
-  /* Base colors — dark theme by default */
-  --color-background: #1a1a2e;
-  --color-foreground: #eeeeee;
+  /* Base colors — light theme with white background */
+  --color-background: #ffffff;
+  --color-foreground: #1a1a1a;
 
-  /* Primary — cyan accent */
-  --color-primary: #00d9ff;
-  --color-primary-rgb: 0, 217, 255;
-  --color-primary-foreground: #1a1a2e;
-  --color-primary-hover: #33e1ff;
-  --color-primary-active: #00b8d9;
+  /* Primary — elegant jade/emerald green (soft and refined) */
+  --color-primary: #10b981;
+  --color-primary-rgb: 16, 185, 129;
+  --color-primary-foreground: #ffffff;
+  --color-primary-hover: #34d399;
+  --color-primary-active: #059669;
 
   /* Secondary */
-  --color-secondary: #64748b;
-  --color-secondary-foreground: #ffffff;
-  --color-secondary-hover: #475569;
-  --color-secondary-active: #334155;
+  --color-secondary: #f3f4f6;
+  --color-secondary-foreground: #1a1a1a;
+  --color-secondary-hover: #e5e7eb;
+  --color-secondary-active: #d1d5db;
 
   /* Muted */
-  --color-muted: #16213e;
-  --color-muted-foreground: #94a3b8;
-  --color-accent: #16213e;
-  --color-accent-foreground: #eeeeee;
+  --color-muted: #f9fafb;
+  --color-muted-foreground: #6b7280;
+  --color-accent: #f3f4f6;
+  --color-accent-foreground: #1a1a1a;
 
   /* Destructive */
   --color-destructive: #ef4444;
@@ -33,10 +34,10 @@
   --color-destructive-active: #dc2626;
 
   /* Border */
-  --color-border: #0f3460;
-  --color-input: #0f3460;
-  --color-ring: #00d9ff;
-  --color-ring-offset: #1a1a2e;
+  --color-border: #e5e7eb;
+  --color-input: #d1d5db;
+  --color-ring: #10b981;
+  --color-ring-offset: #ffffff;
 
   /* Focus ring */
   --ring-offset: 2px;
@@ -45,12 +46,18 @@
   /* Additional colors for components */
   --color-text: var(--color-foreground);
   --color-text-secondary: var(--color-muted-foreground);
-  --color-text-tertiary: #64748b;
+  --color-text-tertiary: #9ca3af;
   --color-card-bg: var(--color-background);
   --color-bg-secondary: var(--color-muted);
   --color-danger: var(--color-destructive);
   --color-danger-dark: var(--color-destructive-active);
   --color-danger-bg: rgba(239, 68, 68, 0.1);
   --color-primary-dark: var(--color-primary-active);
-  --color-primary-bg: rgba(0, 217, 255, 0.1);
+  --color-primary-bg: rgba(16, 185, 129, 0.1);
+
+  /* Jade accent variations for subtle highlights */
+  --color-jade-light: #6ee7b7;
+  --color-jade-medium: #10b981;
+  --color-jade-dark: #059669;
+  --color-jade-muted: rgba(16, 185, 129, 0.15);
 }

@@ -42,16 +42,18 @@ export function KanbanColumn(props: KanbanColumnProps) {
         />
         <h3 class="happy-kanban-column__title">{props.column.title}</h3>
         <div class="happy-kanban-column__count">{props.column.stories.length}</div>
-        <div class="happy-kanban-column__actions">
-          <button
-            class="happy-kanban-column__add-btn"
-            style={{ background: props.column.color }}
-            onClick={() => setShowCreateModal(true)}
-            title="Add story"
-          >
-            +
-          </button>
-        </div>
+        <Show when={props.column.id === 'Pending'}>
+          <div class="happy-kanban-column__actions">
+            <button
+              class="happy-kanban-column__add-btn"
+              style={{ background: props.column.color }}
+              onClick={() => setShowCreateModal(true)}
+              title="Add story"
+            >
+              +
+            </button>
+          </div>
+        </Show>
       </div>
 
       <div class="happy-kanban-column__content">

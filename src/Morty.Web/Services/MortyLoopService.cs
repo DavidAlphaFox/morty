@@ -347,7 +347,7 @@ public class MortyLoopService : BackgroundService
             // 根据阶段处理结果并保存到 Plan 表
             var phaseSuccess = await HandlePhaseResultAsync(
                 story, response.Content, project.PrdJson, analysis,
-                planRepo, detailedPlan, acceptanceCriteria, stoppingToken);
+                planRepo, storyRepo, storyDependencyRepo, detailedPlan, acceptanceCriteria, stoppingToken);
 
             // 更新阶段历史
             phaseHistory.CompletedAt = DateTime.UtcNow;
@@ -451,23 +451,40 @@ public class MortyLoopService : BackgroundService
 
         var prompt = story.Phase switch
         {
-            StoryPhase.RequirementsPlanning => $"""
+            StoryPhase.RequirementsPlanning => $$"""
                 请分析以下用户故事需求，并生成详细的实施计划。
 
-                用户故事: {story.Title}
-                故事 ID: {story.StoryId}
+                用户故事: {{story.Title}}
+                故事 ID: {{story.StoryId}}
 
                 原始需求:
-                {story.Requirements}
+                {{story.Requirements}}
 
                 项目 PRD:
-                {prdJson}
+                {{prdJson}}
 
                 请生成详细的实施计划，包括：
                 1. 需要实现的功能
                 2. 需要修改或创建的文件
                 3. 实现步骤
                 4. 潜在的技术难点
+
+                同时，请分析是否存在当前 backlog（待办列表）中遗漏的任务。如果发现遗漏的任务，请在回复最后以以下 JSON 格式输出：
+
+                ```json
+                {
+                    "discoveredTasks": [
+                        {
+                            "title": "任务标题",
+                            "requirements": "详细需求描述",
+                            "priority": "High|Medium|Low",
+                            "reason": "为什么需要这个任务"
+                        }
+                    ]
+                }
+                ```
+
+                如果没有发现遗漏任务，请输出 "discoveredTasks": []
                 """,
 
             StoryPhase.AcceptancePlanning => $"""
@@ -557,6 +574,8 @@ public class MortyLoopService : BackgroundService
         string prdJson,
         AnalysisResult analysis,
         IPlanRepository planRepo,
+        IStoryRepository storyRepo,
+        IStoryDependencyRepository storyDependencyRepo,
         string? existingDetailedPlan,
         string? existingAcceptanceCriteria,
         CancellationToken stoppingToken)
@@ -566,7 +585,7 @@ public class MortyLoopService : BackgroundService
         {
             StoryPhase.RequirementsPlanning =>
                 await HandleRequirementsPlanningResultAsync(
-                    story, responseContent, planRepo, stoppingToken),
+                    story, responseContent, planRepo, storyRepo, storyDependencyRepo, stoppingToken),
 
             StoryPhase.AcceptancePlanning =>
                 await HandleAcceptancePlanningResultAsync(
@@ -591,6 +610,8 @@ public class MortyLoopService : BackgroundService
         Story story,
         string responseContent,
         IPlanRepository planRepo,
+        IStoryRepository storyRepo,
+        IStoryDependencyRepository storyDependencyRepo,
         CancellationToken stoppingToken)
     {
         // 从响应中提取计划
@@ -608,7 +629,120 @@ public class MortyLoopService : BackgroundService
         };
         await planRepo.AddAsync(plan, stoppingToken);
 
+        // 解析并创建发现的任务
+        await ParseAndCreateDiscoveredTasksAsync(story, responseContent, storyRepo, storyDependencyRepo, stoppingToken);
+
         return !string.IsNullOrEmpty(planContent);
+    }
+
+    /// <summary>
+    /// 解析 AI 输出中发现的遗漏任务并创建 Story
+    /// </summary>
+    private async Task ParseAndCreateDiscoveredTasksAsync(
+        Story parentStory,
+        string responseContent,
+        IStoryRepository storyRepo,
+        IStoryDependencyRepository storyDependencyRepo,
+        CancellationToken stoppingToken)
+    {
+        try
+        {
+            // 尝试从响应中提取 JSON
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                responseContent,
+                @"```json\s*\{[\s\S]*?""discoveredTasks""[\s\S]*?\}\s*```",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            if (!jsonMatch.Success)
+            {
+                // 尝试更宽松的匹配
+                jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                    responseContent,
+                    @"\{[\s\S]*?""discoveredTasks""\s*:\s*\[([\s\S]*?)\]\s*\}",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            }
+
+            if (!jsonMatch.Success)
+            {
+                _logger.Debug("未在响应中发现遗漏任务格式");
+                return;
+            }
+
+            var jsonStr = jsonMatch.Value;
+            // 清理 JSON 字符串
+            jsonStr = System.Text.RegularExpressions.Regex.Replace(jsonStr, @"```json\s*", "");
+            jsonStr = System.Text.RegularExpressions.Regex.Replace(jsonStr, @"\s*```", "");
+
+            using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("discoveredTasks", out var tasksElement))
+            {
+                return;
+            }
+
+            var tasks = tasksElement.EnumerateArray().ToList();
+            if (tasks.Count == 0)
+            {
+                _logger.Debug("未发现遗漏任务");
+                return;
+            }
+
+            _logger.Information("发现 {Count} 个遗漏任务", tasks.Count);
+
+            // 获取当前项目的最大 Story 编号
+            var existingStories = await storyRepo.GetByProjectIdAsync(parentStory.ProjectId, stoppingToken);
+            var maxStoryNum = 0;
+            foreach (var s in existingStories)
+            {
+                var numMatch = System.Text.RegularExpressions.Regex.Match(s.StoryId, @"-(\d+)$");
+                if (numMatch.Success && int.TryParse(numMatch.Groups[1].Value, out var num))
+                {
+                    maxStoryNum = Math.Max(maxStoryNum, num);
+                }
+            }
+
+            foreach (var task in tasks)
+            {
+                var title = task.GetProperty("title").GetString() ?? "未命名任务";
+                var requirements = task.TryGetProperty("requirements", out var req) ? req.GetString() ?? "" : "";
+                var priority = task.TryGetProperty("priority", out var pri) ? pri.GetString() ?? "Medium" : "Medium";
+
+                maxStoryNum++;
+                var newStoryId = $"S-{maxStoryNum:D4}";
+
+                var newStory = new Story
+                {
+                    ProjectId = parentStory.ProjectId,
+                    StoryId = newStoryId,
+                    Title = title,
+                    Priority = priority,
+                    Status = "Pending",
+                    Phase = StoryPhase.Pending,
+                    Requirements = requirements,
+                    Source = StorySource.AutoDiscovered,
+                    IsPaused = true, // 自动发现的任务默认暂停，等待人工确认
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await storyRepo.AddAsync(newStory, stoppingToken);
+                _logger.Information("创建自动发现任务: {StoryId} - {Title}", newStoryId, title);
+
+                // 建立依赖关系：新任务依赖当前任务
+                var dependency = new StoryDependency
+                {
+                    StoryId = newStory.Id,
+                    DependsOnStoryId = parentStory.Id,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await storyDependencyRepo.AddAsync(dependency, stoppingToken);
+                _logger.Information("建立依赖关系: {NewStory} 依赖 {ParentStory}", newStoryId, parentStory.StoryId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "解析或创建发现的任务时出错");
+        }
     }
 
     /// <summary>

@@ -15,11 +15,13 @@ public class ProjectsController : ControllerBase
 {
     private readonly IProjectRepository _projectRepository;
     private readonly IStoryRepository _storyRepository;
+    private readonly string _projectsRootDirectory;
 
-    public ProjectsController(IProjectRepository projectRepository, IStoryRepository storyRepository)
+    public ProjectsController(IProjectRepository projectRepository, IStoryRepository storyRepository, IConfiguration configuration)
     {
         _projectRepository = projectRepository;
         _storyRepository = storyRepository;
+        _projectsRootDirectory = configuration["ProjectsRootDirectory"] ?? "/home/david/workspace/morty-projects";
     }
 
     /// <summary>
@@ -70,10 +72,14 @@ public class ProjectsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ProjectDto>> CreateProject([FromBody] CreateProjectDto dto)
     {
+        // 自动生成工作目录：根目录 + 项目名称
+        var sanitizedName = string.Join("-", dto.Name.Split(Path.GetInvalidFileNameChars()));
+        var workingDirectory = Path.Combine(_projectsRootDirectory, sanitizedName);
+
         var project = new Core.Entities.Project
         {
             Name = dto.Name,
-            WorkingDirectory = dto.WorkingDirectory,
+            WorkingDirectory = workingDirectory,
             PrdJson = dto.PrdJson,
             CreatedAt = DateTime.UtcNow
         };

@@ -13,7 +13,6 @@ interface CreateProjectFormProps {
 
 export function CreateProjectForm(props: CreateProjectFormProps) {
   const [name, setName] = createSignal('');
-  const [workingDirectory, setWorkingDirectory] = createSignal('');
   const [prdJson, setPrdJson] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [submitting, setSubmitting] = createSignal(false);
@@ -23,21 +22,16 @@ export function CreateProjectForm(props: CreateProjectFormProps) {
     setError(null);
 
     const nameVal = name().trim();
-    const dirVal = workingDirectory().trim();
 
     if (!nameVal) {
       setError('Project name is required');
       return;
     }
 
-    if (!dirVal) {
-      setError('Working directory is required');
-      return;
-    }
-
     setSubmitting(true);
     try {
-      await props.onSubmit(nameVal, dirVal, prdJson());
+      // 工作目录将由后端自动生成：根目录 + 项目名称
+      await props.onSubmit(nameVal, '', prdJson());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create project');
     } finally {
@@ -72,16 +66,9 @@ export function CreateProjectForm(props: CreateProjectFormProps) {
               onInput={(e) => setName(e.currentTarget.value)}
               disabled={submitting()}
             />
-          </div>
-
-          <div class="morty-create-project-form__field">
-            <label class="morty-create-project-form__label">Working Directory *</label>
-            <Input
-              placeholder="/path/to/project"
-              value={workingDirectory()}
-              onInput={(e) => setWorkingDirectory(e.currentTarget.value)}
-              disabled={submitting()}
-            />
+            <p class="morty-create-project-form__hint">
+              Working directory will be auto-generated under projects root
+            </p>
           </div>
 
           <div class="morty-create-project-form__field">
