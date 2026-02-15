@@ -16,11 +16,16 @@ public class StoriesController : ControllerBase
 {
     private readonly IStoryRepository _storyRepository;
     private readonly IProjectRepository _projectRepository;
+    private readonly IPlanRepository _planRepository;
 
-    public StoriesController(IStoryRepository storyRepository, IProjectRepository projectRepository)
+    public StoriesController(
+        IStoryRepository storyRepository,
+        IProjectRepository projectRepository,
+        IPlanRepository planRepository)
     {
         _storyRepository = storyRepository;
         _projectRepository = projectRepository;
+        _planRepository = planRepository;
     }
 
     /// <summary>
@@ -35,7 +40,7 @@ public class StoriesController : ControllerBase
         if (story == null)
             return NotFound();
 
-        return Ok(MapToDto(story));
+        return Ok(await MapToDtoWithPlans(story));
     }
 
     /// <summary>
@@ -205,12 +210,10 @@ public class StoriesController : ControllerBase
         story.Phase = StoryPhase.RequirementsPlanning;
         story.CurrentIteration = 0;
         story.Status = "Planning";
-        // 清空之前生成的计划，让 MortyLoopService 重新生成
-        story.DetailedPlan = string.Empty;
 
         await _storyRepository.UpdateAsync(story);
 
-        return Ok(MapToDto(story));
+        return Ok(await MapToDtoWithPlans(story));
     }
 
     /// <summary>
@@ -226,7 +229,10 @@ public class StoriesController : ControllerBase
         if (story == null)
             return NotFound();
 
-        if (string.IsNullOrEmpty(story.DetailedPlan))
+        // 检查是否已有详细计划（从 Plan 表获取）
+        var detailedPlan = await _planRepository.GetLatestByStoryIdAndTypeAsync(
+            id, PlanType.DetailedPlan);
+        if (detailedPlan == null)
         {
             return BadRequest("请先生成详细实施计划 (DetailedPlan)");
         }
@@ -235,12 +241,10 @@ public class StoriesController : ControllerBase
         story.Phase = StoryPhase.AcceptancePlanning;
         story.CurrentIteration = 0;
         story.Status = "Planning";
-        // 清空之前生成的验收标准，让 MortyLoopService 重新生成
-        story.AcceptanceCriteria = string.Empty;
 
         await _storyRepository.UpdateAsync(story);
 
-        return Ok(MapToDto(story));
+        return Ok(await MapToDtoWithPlans(story));
     }
 
     /// <summary>
@@ -334,10 +338,8 @@ public class StoriesController : ControllerBase
     }
 
     /// <summary>
-    /// 将 Story 实体映射为 StoryDto
+    /// 将 Story 实体映射为 StoryDto（同步版本，基本字段）
     /// </summary>
-    /// <param name="story">Story 实体</param>
-    /// <returns>StoryDto 数据传输对象</returns>
     private static StoryDto MapToDto(Story story) => new()
     {
         Id = story.Id,
@@ -352,9 +354,24 @@ public class StoriesController : ControllerBase
         Source = story.Source,
         Phase = story.Phase,
         Requirements = story.Requirements,
-        DetailedPlan = story.DetailedPlan,
         UserAcceptanceCriteria = story.UserAcceptanceCriteria,
-        AcceptanceCriteria = story.AcceptanceCriteria,
         CurrentIteration = story.CurrentIteration
     };
+
+    /// <summary>
+    /// 将 Story 实体映射为 StoryDto（包含从 Plan 表获取的 AI 生成内容）
+    /// </summary>
+    private async Task<StoryDto> MapToDtoWithPlans(Story story)
+    {
+        // 从 Plan 表获取 AI 生成的内容
+        var detailedPlanRecord = await _planRepository.GetLatestByStoryIdAndTypeAsync(
+            story.Id, PlanType.DetailedPlan);
+        var acceptanceCriteriaRecord = await _planRepository.GetLatestByStoryIdAndTypeAsync(
+            story.Id, PlanType.AcceptanceCriteria);
+
+        var dto = MapToDto(story);
+        dto.DetailedPlan = detailedPlanRecord?.PlanContent;
+        dto.AcceptanceCriteria = acceptanceCriteriaRecord?.PlanContent;
+        return dto;
+    }
 }

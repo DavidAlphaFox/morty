@@ -32,6 +32,8 @@ public interface IStoryRepository
     Task<List<Story>> GetByProjectIdAsync(int projectId, CancellationToken cancellationToken = default);
     /// <summary>获取下一个待处理的故事（按优先级排序）</summary>
     Task<Story?> GetNextPendingAsync(CancellationToken cancellationToken = default);
+    /// <summary>获取指定队列的下一个待处理故事</summary>
+    Task<Story?> GetNextPendingByQueueTypeAsync(StoryQueueType queueType, CancellationToken cancellationToken = default);
     /// <summary>添加新故事</summary>
     Task<Story> AddAsync(Story story, CancellationToken cancellationToken = default);
     /// <summary>更新故事</summary>
@@ -66,6 +68,8 @@ public interface IPlanRepository
 {
     /// <summary>获取故事的最新计划</summary>
     Task<Plan?> GetLatestByStoryIdAsync(int storyId, CancellationToken cancellationToken = default);
+    /// <summary>根据类型获取故事的最新计划</summary>
+    Task<Plan?> GetLatestByStoryIdAndTypeAsync(int storyId, PlanType type, CancellationToken cancellationToken = default);
     /// <summary>添加新计划</summary>
     Task<Plan> AddAsync(Plan plan, CancellationToken cancellationToken = default);
 }
@@ -143,18 +147,37 @@ public interface IStoryDependencyRepository
 }
 
 /// <summary>
-/// Claude 环境变量配置仓储接口
+/// 环境配置组仓储接口
 /// </summary>
-public interface IClaudeEnvConfigRepository
+public interface IEnvConfigGroupRepository
 {
-    /// <summary>添加配置</summary>
-    Task<ClaudeEnvConfig> AddAsync(ClaudeEnvConfig config, CancellationToken cancellationToken = default);
-    /// <summary>更新配置</summary>
-    Task UpdateAsync(ClaudeEnvConfig config, CancellationToken cancellationToken = default);
-    /// <summary>删除配置</summary>
+    /// <summary>根据 ID 获取环境配置组</summary>
+    Task<EnvConfigGroup?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+    /// <summary>获取所有环境配置组</summary>
+    Task<List<EnvConfigGroup>> GetAllAsync(CancellationToken cancellationToken = default);
+    /// <summary>添加新环境配置组</summary>
+    Task<EnvConfigGroup> AddAsync(EnvConfigGroup group, CancellationToken cancellationToken = default);
+    /// <summary>更新环境配置组</summary>
+    Task UpdateAsync(EnvConfigGroup group, CancellationToken cancellationToken = default);
+    /// <summary>删除环境配置组</summary>
     Task DeleteAsync(int id, CancellationToken cancellationToken = default);
-    /// <summary>获取项目的所有环境变量配置</summary>
-    Task<List<ClaudeEnvConfig>> GetByProjectIdAsync(int projectId, CancellationToken cancellationToken = default);
-    /// <summary>获取指定键的配置</summary>
-    Task<ClaudeEnvConfig?> GetByKeyAsync(int projectId, string key, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// 环境变量规则仓储接口
+/// </summary>
+public interface IEnvConfigRuleRepository
+{
+    /// <summary>根据 ID 获取规则</summary>
+    Task<EnvConfigRule?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+    /// <summary>获取项目的所有规则</summary>
+    Task<List<EnvConfigRule>> GetByProjectIdAsync(int projectId, CancellationToken cancellationToken = default);
+    /// <summary>添加新规则</summary>
+    Task<EnvConfigRule> AddAsync(EnvConfigRule rule, CancellationToken cancellationToken = default);
+    /// <summary>更新规则</summary>
+    Task UpdateAsync(EnvConfigRule rule, CancellationToken cancellationToken = default);
+    /// <summary>删除规则</summary>
+    Task DeleteAsync(int id, CancellationToken cancellationToken = default);
+    /// <summary>查找匹配的规则（按优先级倒序）</summary>
+    Task<EnvConfigRule?> FindMatchingRuleAsync(int projectId, StoryPhase? fromPhase, StoryPhase? toPhase, string[] tags, CancellationToken cancellationToken = default);
 }

@@ -4,7 +4,7 @@
  * 包含项目、故事、迭代等数据的 CRUD 操作
  */
 
-import type { Project, Story, Iteration, Plan, CreateStoryDto, UpdateStoryDto, UpdateRequirementsDto, UpdateUserAcceptanceCriteriaDto, StartPhaseDto, CreateProjectDto, UpdateProjectDto } from '../types';
+import type { Project, Story, Iteration, Plan, CreateStoryDto, UpdateStoryDto, UpdateRequirementsDto, UpdateUserAcceptanceCriteriaDto, StartPhaseDto, CreateProjectDto, UpdateProjectDto, EnvConfigGroup, EnvConfigRule, CreateEnvConfigGroupDto, UpdateEnvConfigGroupDto, CreateEnvConfigRuleDto, UpdateEnvConfigRuleDto } from '../types';
 
 const BASE = '/api';
 
@@ -221,4 +221,135 @@ export async function regenerateAcceptance(id: number): Promise<Story> {
     headers: { 'Content-Type': 'application/json' },
   });
   return json<Story>(res);
+}
+
+// ==================== 环境配置组 API ====================
+
+/**
+ * 获取所有环境配置组
+ * @returns 环境配置组数组
+ */
+export async function fetchEnvConfigGroups(): Promise<EnvConfigGroup[]> {
+  const res = await fetch(`${BASE}/envconfiggroups`);
+  return json<EnvConfigGroup[]>(res);
+}
+
+/**
+ * 获取指定环境配置组
+ * @param id 环境配置组 ID
+ * @returns 环境配置组对象
+ */
+export async function fetchEnvConfigGroup(id: number): Promise<EnvConfigGroup> {
+  const res = await fetch(`${BASE}/envconfiggroups/${id}`);
+  return json<EnvConfigGroup>(res);
+}
+
+/**
+ * 创建新环境配置组
+ * @param dto 创建数据
+ * @returns 创建成功的环境配置组对象
+ */
+export async function createEnvConfigGroup(dto: CreateEnvConfigGroupDto): Promise<EnvConfigGroup> {
+  const res = await fetch(`${BASE}/envconfiggroups`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
+  return json<EnvConfigGroup>(res);
+}
+
+/**
+ * 更新环境配置组
+ * @param id 环境配置组 ID
+ * @param dto 更新数据
+ * @returns 更新后的环境配置组对象
+ */
+export async function updateEnvConfigGroup(id: number, dto: UpdateEnvConfigGroupDto): Promise<EnvConfigGroup> {
+  const res = await fetch(`${BASE}/envconfiggroups/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
+  return json<EnvConfigGroup>(res);
+}
+
+/**
+ * 删除环境配置组
+ * @param id 环境配置组 ID
+ */
+export async function deleteEnvConfigGroup(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/envconfiggroups/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(`API error: ${res.status} ${res.statusText}`);
+  }
+}
+
+// ==================== 环境变量规则 API ====================
+
+/**
+ * 获取项目的所有环境变量规则
+ * @param projectId 项目 ID
+ * @returns 规则数组
+ */
+export async function fetchEnvConfigRules(projectId: number): Promise<EnvConfigRule[]> {
+  const res = await fetch(`${BASE}/projects/${projectId}/envconfigrules`);
+  return json<EnvConfigRule[]>(res);
+}
+
+/**
+ * 获取指定环境变量规则
+ * @param projectId 项目 ID
+ * @param id 规则 ID
+ * @returns 规则对象
+ */
+export async function fetchEnvConfigRule(projectId: number, id: number): Promise<EnvConfigRule> {
+  const res = await fetch(`${BASE}/projects/${projectId}/envconfigrules/${id}`);
+  return json<EnvConfigRule>(res);
+}
+
+/**
+ * 创建新环境变量规则
+ * @param projectId 项目 ID
+ * @param dto 创建数据
+ * @returns 创建成功的规则对象
+ */
+export async function createEnvConfigRule(projectId: number, dto: CreateEnvConfigRuleDto): Promise<EnvConfigRule> {
+  const res = await fetch(`${BASE}/projects/${projectId}/envconfigrules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
+  return json<EnvConfigRule>(res);
+}
+
+/**
+ * 更新环境变量规则
+ * @param projectId 项目 ID
+ * @param id 规则 ID
+ * @param dto 更新数据
+ * @returns 更新后的规则对象
+ */
+export async function updateEnvConfigRule(projectId: number, id: number, dto: UpdateEnvConfigRuleDto): Promise<EnvConfigRule> {
+  const res = await fetch(`${BASE}/projects/${projectId}/envconfigrules/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
+  return json<EnvConfigRule>(res);
+}
+
+/**
+ * 删除环境变量规则
+ * @param projectId 项目 ID
+ * @param id 规则 ID
+ */
+export async function deleteEnvConfigRule(projectId: number, id: number): Promise<void> {
+  const res = await fetch(`${BASE}/projects/${projectId}/envconfigrules/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(`API error: ${res.status} ${res.statusText}`);
+  }
 }

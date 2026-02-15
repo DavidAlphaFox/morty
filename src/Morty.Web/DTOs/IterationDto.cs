@@ -20,11 +20,3 @@ public class VerificationDto
     public string Output { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
 }
-
-public class PlanDto
-{
-    public int Id { get; set; }
-    public int StoryId { get; set; }
-    public string PlanContent { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
-}

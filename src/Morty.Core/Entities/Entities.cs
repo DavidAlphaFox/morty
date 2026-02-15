@@ -11,7 +11,12 @@ public class Project
     public string PrdJson { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>默认环境配置组 ID（可选）</summary>
+    public int? DefaultEnvConfigGroupId { get; set; }
+
     public ICollection<Story> Stories { get; set; } = new List<Story>();
+    public ICollection<EnvConfigRule> EnvConfigRules { get; set; } = new List<EnvConfigRule>();
+    public EnvConfigGroup? DefaultEnvConfigGroup { get; set; }
 }
 
 /// <summary>
@@ -41,6 +46,8 @@ public class Story
     public bool IsPaused { get; set; } = true;
     /// <summary>故事来源</summary>
     public StorySource Source { get; set; } = StorySource.UserAdded;
+    /// <summary>标签（JSON 数组，如 ["frontend", "api", "urgent"]）</summary>
+    public string Tags { get; set; } = "[]";
 
     public Project Project { get; set; } = null!;
     public ICollection<Iteration> Iterations { get; set; } = new List<Iteration>();
@@ -151,6 +158,17 @@ public enum PlanType
 }
 
 /// <summary>
+/// 故事队列类型
+/// </summary>
+public enum StoryQueueType
+{
+    /// <summary>计划队列 - RequirementsPlanning, AcceptancePlanning</summary>
+    Planning,
+    /// <summary>执行队列 - Coding, Testing, Acceptance</summary>
+    Execution
+}
+
+/// <summary>
 /// 故事来源枚举
 /// </summary>
 public enum StorySource
@@ -162,13 +180,32 @@ public enum StorySource
 }
 
 /// <summary>
-/// Claude 环境变量配置实体
+/// 环境配置组实体（全局）
+/// 包含一组环境变量配置，可被多个项目复用
 /// </summary>
-public class ClaudeEnvConfig
+public class EnvConfigGroup
 {
     public int Id { get; set; }
-    /// <summary>所属项目 ID</summary>
-    public int ProjectId { get; set; }
+    /// <summary>配置组名称</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>配置组描述</summary>
+    public string Description { get; set; } = string.Empty;
+    /// <summary>创建时间</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>环境变量列表</summary>
+    public ICollection<EnvVariable> Variables { get; set; } = new List<EnvVariable>();
+}
+
+/// <summary>
+/// 环境变量实体
+/// 属于某个环境配置组
+/// </summary>
+public class EnvVariable
+{
+    public int Id { get; set; }
+    /// <summary>所属环境配置组 ID</summary>
+    public int EnvConfigGroupId { get; set; }
     /// <summary>环境变量名</summary>
     public string Key { get; set; } = string.Empty;
     /// <summary>环境变量值</summary>
@@ -178,7 +215,33 @@ public class ClaudeEnvConfig
     /// <summary>默认值（可选变量不存在时使用）</summary>
     public string? DefaultValue { get; set; }
 
+    public EnvConfigGroup EnvConfigGroup { get; set; } = null!;
+}
+
+/// <summary>
+/// 环境变量规则实体
+/// 定义在特定条件下使用哪个环境配置组
+/// </summary>
+public class EnvConfigRule
+{
+    public int Id { get; set; }
+    /// <summary>所属项目 ID</summary>
+    public int ProjectId { get; set; }
+    /// <summary>要使用的环境配置组 ID</summary>
+    public int EnvConfigGroupId { get; set; }
+    /// <summary>起始阶段（如 "Pending"）</summary>
+    public StoryPhase? FromPhase { get; set; }
+    /// <summary>目标阶段（如 "Planning"）</summary>
+    public StoryPhase? ToPhase { get; set; }
+    /// <summary>标签匹配（JSON 数组，如 ["frontend", "api"]，空表示匹配所有）</summary>
+    public string Tags { get; set; } = "[]";
+    /// <summary>优先级（数字越大优先级越高）</summary>
+    public int Priority { get; set; } = 0;
+    /// <summary>创建时间</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
     public Project Project { get; set; } = null!;
+    public EnvConfigGroup EnvConfigGroup { get; set; } = null!;
 }
 
 /// <summary>

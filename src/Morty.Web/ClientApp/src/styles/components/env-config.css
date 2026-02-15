@@ -1,0 +1,725 @@
+/* 环境配置组列表 */
+.morty-env-config-group-list {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.morty-env-config-group-list__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.morty-env-config-group-list__title {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.morty-env-config-group-list__create-btn {
+  padding: 0.75rem 1.5rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.morty-env-config-group-list__create-btn:hover {
+  background: var(--color-primary-dark);
+  transform: translateY(-1px);
+}
+
+.morty-env-config-group-list__loading,
+.morty-env-config-group-list__empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--color-text-secondary);
+}
+
+.morty-env-config-group-list__empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.morty-env-config-group-list__empty-text {
+  font-size: 1.25rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.morty-env-config-group-list__empty-hint {
+  font-size: 0.95rem;
+  color: var(--color-text-tertiary);
+}
+
+.morty-env-config-group-list__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+/* 环境配置组卡片 */
+.morty-env-config-group-card {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.morty-env-config-group-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.morty-env-config-group-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.morty-env-config-group-card__icon {
+  font-size: 1.75rem;
+}
+
+.morty-env-config-group-card__name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+  flex: 1;
+}
+
+.morty-env-config-group-card__description {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.morty-env-config-group-card__variables {
+  margin-bottom: 1rem;
+}
+
+.morty-env-config-group-card__variables-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.morty-env-config-group-card__variables-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.morty-env-config-group-card__variable {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  background: var(--color-bg-secondary);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: 'Courier New', monospace;
+}
+
+.morty-env-config-group-card__variable-key {
+  color: var(--color-text);
+}
+
+.morty-env-config-group-card__variable-required {
+  color: var(--color-danger);
+  font-weight: bold;
+}
+
+.morty-env-config-group-card__variable-more {
+  padding: 0.25rem 0.75rem;
+  color: var(--color-text-tertiary);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.morty-env-config-group-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.morty-env-config-group-card__date {
+  font-size: 0.85rem;
+  color: var(--color-text-tertiary);
+}
+
+.morty-env-config-group-card__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.morty-env-config-group-card__action {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.morty-env-config-group-card__action:hover {
+  background: var(--color-bg-secondary);
+}
+
+.morty-env-config-group-card__action--danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.morty-env-config-group-card__action--danger:hover {
+  background: var(--color-danger);
+  color: white;
+}
+
+/* 创建环境配置组表单 */
+.morty-create-env-config-group-form {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.morty-create-env-config-group-form__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.morty-create-env-config-group-form__modal {
+  position: relative;
+  width: 90%;
+  max-width: 700px;
+  max-height: 90vh;
+  background: var(--color-card-bg);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+.morty-create-env-config-group-form__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.morty-create-env-config-group-form__header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.morty-create-env-config-group-form__close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  padding: 0.25rem;
+  line-height: 1;
+}
+
+.morty-create-env-config-group-form__close:hover {
+  color: var(--color-text);
+}
+
+.morty-create-env-config-group-form__body {
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.morty-create-env-config-group-form__error {
+  padding: 0.75rem 1rem;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.morty-create-env-config-group-form__field {
+  margin-bottom: 1.5rem;
+}
+
+.morty-create-env-config-group-form__label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 0.5rem;
+}
+
+.morty-create-env-config-group-form__section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.morty-create-env-config-group-form__section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.morty-create-env-config-group-form__section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.morty-create-env-config-group-form__add-btn {
+  padding: 0.5rem 1rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.morty-create-env-config-group-form__add-btn:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+}
+
+.morty-create-env-config-group-form__add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.morty-create-env-config-group-form__variables {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.morty-create-env-config-group-form__variable {
+  padding: 1rem;
+  background: var(--color-bg-secondary);
+  border-radius: 8px;
+}
+
+.morty-create-env-config-group-form__variable-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.morty-create-env-config-group-form__remove-btn {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: var(--color-danger);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.25rem;
+  transition: all 0.2s;
+}
+
+.morty-create-env-config-group-form__remove-btn:hover:not(:disabled) {
+  background: var(--color-danger-dark);
+}
+
+.morty-create-env-config-group-form__variable-options {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.morty-create-env-config-group-form__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.morty-create-env-config-group-form__checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.morty-create-env-config-group-form__empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 0.9rem;
+}
+
+.morty-create-env-config-group-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+  margin-top: 1.5rem;
+}
+
+/* 环境变量规则列表 */
+.morty-env-config-rules-list {
+  margin-top: 2rem;
+}
+
+.morty-env-config-rules-list__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.morty-env-config-rules-list__title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.morty-env-config-rules-list__hint {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.morty-env-config-rules-list__create-btn {
+  padding: 0.5rem 1rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.morty-env-config-rules-list__create-btn:hover {
+  background: var(--color-primary-dark);
+}
+
+.morty-env-config-rules-list__loading,
+.morty-env-config-rules-list__empty {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--color-text-secondary);
+}
+
+.morty-env-config-rules-list__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 环境变量规则卡片 */
+.morty-env-config-rule-card {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  transition: all 0.2s;
+}
+
+.morty-env-config-rule-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.morty-env-config-rule-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.morty-env-config-rule-card__config-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.morty-env-config-rule-card__priority {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  padding: 0.25rem 0.75rem;
+  background: var(--color-bg-secondary);
+  border-radius: 12px;
+}
+
+.morty-env-config-rule-card__conditions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.morty-env-config-rule-card__label {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-right: 0.5rem;
+}
+
+.morty-env-config-rule-card__phase,
+.morty-env-config-rule-card__tags,
+.morty-env-config-rule-card__variables {
+  font-size: 0.9rem;
+}
+
+.morty-env-config-rule-card__tag,
+.morty-env-config-rule-card__variable {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  margin-right: 0.5rem;
+}
+
+.morty-env-config-rule-card__tag-any,
+.morty-env-config-rule-card__no-variables {
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+.morty-env-config-rule-card__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.morty-env-config-rule-card__delete {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--color-danger);
+  color: var(--color-danger);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.morty-env-config-rule-card__delete:hover {
+  background: var(--color-danger);
+  color: white;
+}
+
+/* 创建环境变量规则表单 */
+.morty-create-env-config-rule-form {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.morty-create-env-config-rule-form__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.morty-create-env-config-rule-form__modal {
+  position: relative;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  background: var(--color-card-bg);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+.morty-create-env-config-rule-form__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.morty-create-env-config-rule-form__header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.morty-create-env-config-rule-form__close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  padding: 0.25rem;
+  line-height: 1;
+}
+
+.morty-create-env-config-rule-form__close:hover {
+  color: var(--color-text);
+}
+
+.morty-create-env-config-rule-form__body {
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.morty-create-env-config-rule-form__error {
+  padding: 0.75rem 1rem;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.morty-create-env-config-rule-form__field {
+  margin-bottom: 1.5rem;
+}
+
+.morty-create-env-config-rule-form__label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 0.5rem;
+}
+
+.morty-create-env-config-rule-form__select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: var(--color-card-bg);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.morty-create-env-config-rule-form__select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.morty-create-env-config-rule-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+  margin-top: 1.5rem;
+}
+
+/* 项目设置 */
+.morty-project-settings {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.morty-project-settings__title {
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 2rem;
+}
+
+.morty-project-settings__section {
+  margin-bottom: 3rem;
+}
+
+/* 导航栏 */
+.morty-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 2rem;
+}
+
+.morty-nav__item {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all 0.2s;
+}
+
+.morty-nav__item:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+}
+
+.morty-nav__item--active {
+  background: var(--color-primary);
+  color: white;
+}
+
+/* 项目头部选项卡 */
+.morty-header__tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 2rem;
+}
+
+.morty-header__tab {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 0.95rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all 0.2s;
+}
+
+.morty-header__tab:hover {
+  color: var(--color-text);
+}
+
+.morty-header__tab--active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}

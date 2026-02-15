@@ -13,6 +13,7 @@
 @import './components/sheet.css';
 @import './components/alert-dialog.css';
 @import './components/markdown-editor.css';
+@import './components/env-config.css';
 
 /* App */
 @import './app.css';

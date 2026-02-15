@@ -18,14 +18,16 @@ public class ClaudeScriptProvider : IClaudeProvider
     private readonly string _scriptPath;
     private readonly TimeSpan _timeout;
     private readonly Serilog.ILogger _logger;
-    private readonly IClaudeEnvConfigRepository _envConfigRepository;
+    private readonly IEnvConfigGroupRepository? _envConfigGroupRepository;
+    private readonly IEnvConfigRuleRepository? _envConfigRuleRepository;
     private readonly int? _projectId;
 
     public string Name => "Claude CLI (Script)";
     public string Type => "cli-script";
 
     public ClaudeScriptProvider(
-        IClaudeEnvConfigRepository envConfigRepository,
+        IEnvConfigGroupRepository? envConfigGroupRepository = null,
+        IEnvConfigRuleRepository? envConfigRuleRepository = null,
         string scriptPath = "./scripts/claude-launcher.sh",
         TimeSpan? timeout = null,
         Serilog.ILogger? logger = null,
@@ -34,7 +36,8 @@ public class ClaudeScriptProvider : IClaudeProvider
         _scriptPath = scriptPath;
         _timeout = timeout ?? TimeSpan.FromMinutes(10);
         _logger = logger ?? Log.Logger;
-        _envConfigRepository = envConfigRepository;
+        _envConfigGroupRepository = envConfigGroupRepository;
+        _envConfigRuleRepository = envConfigRuleRepository;
         _projectId = projectId;
     }
 
@@ -147,14 +150,12 @@ public class ClaudeScriptProvider : IClaudeProvider
 
     /// <summary>
     /// 获取环境变量配置
+    /// TODO: 实现基于规则的环境变量匹配
     /// </summary>
-    private async Task<List<ClaudeEnvConfig>> GetEnvironmentVariablesAsync(CancellationToken ct)
+    private async Task<List<EnvVariable>> GetEnvironmentVariablesAsync(CancellationToken ct)
     {
-        if (_projectId.HasValue)
-        {
-            return await _envConfigRepository.GetByProjectIdAsync(_projectId.Value, ct);
-        }
-        return new List<ClaudeEnvConfig>();
+        // 暂时返回空列表，后续实现规则匹配逻辑
+        return new List<EnvVariable>();
     }
 
     /// <summary>
@@ -169,21 +170,21 @@ public class ClaudeScriptProvider : IClaudeProvider
     /// <summary>
     /// 构建环境变量 JSON
     /// </summary>
-    private static string BuildEnvJson(List<ClaudeEnvConfig> configs)
+    private static string BuildEnvJson(List<EnvVariable> variables)
     {
-        if (configs.Count == 0)
+        if (variables.Count == 0)
             return "{}";
 
         var dict = new Dictionary<string, string?>();
-        foreach (var config in configs)
+        foreach (var variable in variables)
         {
-            if (!string.IsNullOrEmpty(config.Value))
+            if (!string.IsNullOrEmpty(variable.Value))
             {
-                dict[config.Key] = config.Value;
+                dict[variable.Key] = variable.Value;
             }
-            else if (!string.IsNullOrEmpty(config.DefaultValue))
+            else if (!string.IsNullOrEmpty(variable.DefaultValue))
             {
-                dict[config.Key] = config.DefaultValue;
+                dict[variable.Key] = variable.DefaultValue;
             }
             // 如果值和默认值都为空，则不添加
         }

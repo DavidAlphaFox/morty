@@ -95,6 +95,35 @@ public class StoryRepository : IStoryRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<Story?> GetNextPendingByQueueTypeAsync(StoryQueueType queueType, CancellationToken cancellationToken = default)
+    {
+        // 定义各队列类型对应的阶段
+        var planningPhases = new[]
+        {
+            StoryPhase.RequirementsPlanning,
+            StoryPhase.AcceptancePlanning
+        };
+
+        var executionPhases = new[]
+        {
+            StoryPhase.Coding,
+            StoryPhase.Testing,
+            StoryPhase.Acceptance
+        };
+
+        var activePhases = queueType == StoryQueueType.Planning
+            ? planningPhases
+            : executionPhases;
+
+        return await _context.Stories
+            .Where(s => !s.IsPaused
+                && (s.Status == "Pending" || s.Status == "InProgress" || s.Status == "Planning" || s.Status == "Verifying")
+                && activePhases.Contains(s.Phase))
+            .OrderBy(s => s.Priority == "High" ? 0 : s.Priority == "Medium" ? 1 : 2)
+            .ThenBy(s => s.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<Story> AddAsync(Story story, CancellationToken cancellationToken = default)
     {
         _context.Stories.Add(story);
@@ -182,6 +211,14 @@ public class PlanRepository : IPlanRepository
     {
         return await _context.Plans
             .Where(p => p.StoryId == storyId)
+            .OrderByDescending(p => p.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<Plan?> GetLatestByStoryIdAndTypeAsync(int storyId, PlanType type, CancellationToken cancellationToken = default)
+    {
+        return await _context.Plans
+            .Where(p => p.StoryId == storyId && p.Type == type)
             .OrderByDescending(p => p.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -413,50 +450,136 @@ public class StoryDependencyRepository : IStoryDependencyRepository
 }
 
 /// <summary>
-/// Claude 环境变量配置仓储实现
+/// 环境配置组仓储实现
+/// 负责环境配置组数据的数据库操作
 /// </summary>
-public class ClaudeEnvConfigRepository : IClaudeEnvConfigRepository
+public class EnvConfigGroupRepository : IEnvConfigGroupRepository
 {
     private readonly MortyDbContext _context;
 
-    public ClaudeEnvConfigRepository(MortyDbContext context)
+    public EnvConfigGroupRepository(MortyDbContext context)
     {
         _context = context;
     }
 
-    public async Task<ClaudeEnvConfig> AddAsync(ClaudeEnvConfig config, CancellationToken cancellationToken = default)
+    public async Task<EnvConfigGroup?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        _context.ClaudeEnvConfigs.Add(config);
-        await _context.SaveChangesAsync(cancellationToken);
-        return config;
+        return await _context.EnvConfigGroups
+            .Include(g => g.Variables)
+            .FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
     }
 
-    public async Task UpdateAsync(ClaudeEnvConfig config, CancellationToken cancellationToken = default)
+    public async Task<List<EnvConfigGroup>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        _context.ClaudeEnvConfigs.Update(config);
+        return await _context.EnvConfigGroups
+            .Include(g => g.Variables)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<EnvConfigGroup> AddAsync(EnvConfigGroup group, CancellationToken cancellationToken = default)
+    {
+        _context.EnvConfigGroups.Add(group);
+        await _context.SaveChangesAsync(cancellationToken);
+        return group;
+    }
+
+    public async Task UpdateAsync(EnvConfigGroup group, CancellationToken cancellationToken = default)
+    {
+        _context.EnvConfigGroups.Update(group);
         await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
-        var config = await _context.ClaudeEnvConfigs.FindAsync([id], cancellationToken);
-        if (config != null)
+        var group = await _context.EnvConfigGroups.FindAsync([id], cancellationToken);
+        if (group != null)
         {
-            _context.ClaudeEnvConfigs.Remove(config);
+            _context.EnvConfigGroups.Remove(group);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+}
+
+/// <summary>
+/// 环境变量规则仓储实现
+/// 负责环境变量规则数据的数据库操作
+/// </summary>
+public class EnvConfigRuleRepository : IEnvConfigRuleRepository
+{
+    private readonly MortyDbContext _context;
+
+    public EnvConfigRuleRepository(MortyDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<EnvConfigRule?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        return await _context.EnvConfigRules
+            .Include(r => r.EnvConfigGroup)
+            .ThenInclude(g => g.Variables)
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+    }
+
+    public async Task<List<EnvConfigRule>> GetByProjectIdAsync(int projectId, CancellationToken cancellationToken = default)
+    {
+        return await _context.EnvConfigRules
+            .Where(r => r.ProjectId == projectId)
+            .Include(r => r.EnvConfigGroup)
+            .ThenInclude(g => g.Variables)
+            .OrderByDescending(r => r.Priority)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<EnvConfigRule> AddAsync(EnvConfigRule rule, CancellationToken cancellationToken = default)
+    {
+        _context.EnvConfigRules.Add(rule);
+        await _context.SaveChangesAsync(cancellationToken);
+        return rule;
+    }
+
+    public async Task UpdateAsync(EnvConfigRule rule, CancellationToken cancellationToken = default)
+    {
+        _context.EnvConfigRules.Update(rule);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var rule = await _context.EnvConfigRules.FindAsync([id], cancellationToken);
+        if (rule != null)
+        {
+            _context.EnvConfigRules.Remove(rule);
             await _context.SaveChangesAsync(cancellationToken);
         }
     }
 
-    public async Task<List<ClaudeEnvConfig>> GetByProjectIdAsync(int projectId, CancellationToken cancellationToken = default)
+    public async Task<EnvConfigRule?> FindMatchingRuleAsync(int projectId, StoryPhase? fromPhase, StoryPhase? toPhase, string[] tags, CancellationToken cancellationToken = default)
     {
-        return await _context.ClaudeEnvConfigs
-            .Where(c => c.ProjectId == projectId)
-            .ToListAsync(cancellationToken);
-    }
+        var rules = await GetByProjectIdAsync(projectId, cancellationToken);
 
-    public async Task<ClaudeEnvConfig?> GetByKeyAsync(int projectId, string key, CancellationToken cancellationToken = default)
-    {
-        return await _context.ClaudeEnvConfigs
-            .FirstOrDefaultAsync(c => c.ProjectId == projectId && c.Key == key, cancellationToken);
+        // 按优先级倒序查找匹配的规则
+        foreach (var rule in rules)
+        {
+            // 检查阶段是否匹配
+            bool phaseMatches = (rule.FromPhase == null || rule.FromPhase == fromPhase) &&
+                               (rule.ToPhase == null || rule.ToPhase == toPhase);
+
+            if (!phaseMatches)
+                continue;
+
+            // 检查标签是否匹配
+            var ruleTags = System.Text.Json.JsonSerializer.Deserialize<string[]>(rule.Tags) ?? [];
+
+            // 如果规则没有标签，匹配所有
+            if (ruleTags.Length == 0)
+                return rule;
+
+            // 如果规则有标签，检查故事标签是否包含规则的所有标签
+            if (ruleTags.All(t => tags.Contains(t)))
+                return rule;
+        }
+
+        return null;
     }
 }

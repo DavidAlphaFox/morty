@@ -41,4 +41,16 @@
   /* Focus ring */
   --ring-offset: 2px;
   --ring: 2px;
+
+  /* Additional colors for components */
+  --color-text: var(--color-foreground);
+  --color-text-secondary: var(--color-muted-foreground);
+  --color-text-tertiary: #64748b;
+  --color-card-bg: var(--color-background);
+  --color-bg-secondary: var(--color-muted);
+  --color-danger: var(--color-destructive);
+  --color-danger-dark: var(--color-destructive-active);
+  --color-danger-bg: rgba(239, 68, 68, 0.1);
+  --color-primary-dark: var(--color-primary-active);
+  --color-primary-bg: rgba(0, 217, 255, 0.1);
 }

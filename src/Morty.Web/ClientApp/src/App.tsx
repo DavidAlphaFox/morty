@@ -7,8 +7,11 @@ import { createSignal, Show, createResource } from 'solid-js';
 import { KanbanProvider, useKanbanContext } from './kanban/kanban-context';
 import { KanbanBoard } from './kanban';
 import { ProjectList } from './project';
+import { EnvConfigGroupList, EnvConfigRulesList } from './env-config';
 import type { Project } from './types';
 import { fetchProjects } from './api/client';
+
+type ViewType = 'projects' | 'env-config' | 'kanban';
 
 /**
  * SignalR 连接状态指示器
@@ -48,6 +51,7 @@ function ConnectionBadge() {
  */
 function KanbanView(props: { project: Project; onBack: () => void }) {
   const kanban = useKanbanContext();
+  const [activeTab, setActiveTab] = createSignal<'kanban' | 'settings'>('kanban');
 
   // 设置项目（进入项目时加入 SignalR 房间）
   kanban.setProject(props.project.id);
@@ -64,13 +68,68 @@ function KanbanView(props: { project: Project; onBack: () => void }) {
         </button>
         <h1 class="morty-logo">Morty</h1>
         <div class="morty-header__project-name">{props.project.name}</div>
+        <div class="morty-header__tabs">
+          <button
+            class={`morty-header__tab ${activeTab() === 'kanban' ? 'morty-header__tab--active' : ''}`}
+            onClick={() => setActiveTab('kanban')}
+          >
+            看板
+          </button>
+          <button
+            class={`morty-header__tab ${activeTab() === 'settings' ? 'morty-header__tab--active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            设置
+          </button>
+        </div>
         <div class="morty-header__spacer" />
         <ConnectionBadge />
       </header>
       <main class="morty-main">
-        <KanbanBoard />
+        <Show when={activeTab() === 'kanban'}>
+          <KanbanBoard />
+        </Show>
+        <Show when={activeTab() === 'settings'}>
+          <ProjectSettings projectId={props.project.id} />
+        </Show>
       </main>
     </>
+  );
+}
+
+/**
+ * 项目设置视图
+ */
+function ProjectSettings(props: { projectId: number }) {
+  return (
+    <div class="morty-project-settings">
+      <h2 class="morty-project-settings__title">项目设置</h2>
+      <div class="morty-project-settings__section">
+        <EnvConfigRulesList projectId={props.projectId} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 导航栏组件
+ */
+function Navigation(props: { currentView: ViewType; onNavigate: (view: ViewType) => void }) {
+  return (
+    <nav class="morty-nav">
+      <button
+        class={`morty-nav__item ${props.currentView === 'projects' ? 'morty-nav__item--active' : ''}`}
+        onClick={() => props.onNavigate('projects')}
+      >
+        📁 项目
+      </button>
+      <button
+        class={`morty-nav__item ${props.currentView === 'env-config' ? 'morty-nav__item--active' : ''}`}
+        onClick={() => props.onNavigate('env-config')}
+      >
+        ⚙️ 环境配置
+      </button>
+    </nav>
   );
 }
 
@@ -84,30 +143,53 @@ function AppContent() {
   const [projects] = createResource(fetchProjects);
   // 当前选中的项目
   const [selectedProject, setSelectedProject] = createSignal<Project | null>(null);
+  // 当前视图
+  const [currentView, setCurrentView] = createSignal<ViewType>('projects');
 
   // 处理项目选择
   const handleSelectProject = (projectId: number) => {
     const project = projects()?.find((p) => p.id === projectId);
     if (project) {
       setSelectedProject(project);
+      setCurrentView('kanban');
     }
   };
 
   // 返回项目列表
   const handleBackToProjects = () => {
     setSelectedProject(null);
+    setCurrentView('projects');
+  };
+
+  // 处理导航切换
+  const handleNavigate = (view: ViewType) => {
+    if (view === 'kanban' && !selectedProject()) {
+      // 如果没有选中项目，不能切换到 kanban 视图
+      return;
+    }
+    if (view !== 'kanban') {
+      // 切换到其他视图时清除选中的项目
+      setSelectedProject(null);
+    }
+    setCurrentView(view);
   };
 
   return (
     <Show
-      when={selectedProject()}
+      when={currentView() === 'kanban' && selectedProject()}
       fallback={
         <div class="morty-app-shell">
           <header class="morty-header morty-header--centered">
             <h1 class="morty-logo">Morty</h1>
+            <Navigation currentView={currentView()} onNavigate={handleNavigate} />
           </header>
           <main class="morty-main morty-main--centered">
-            <ProjectList onSelectProject={handleSelectProject} />
+            <Show when={currentView() === 'projects'}>
+              <ProjectList onSelectProject={handleSelectProject} />
+            </Show>
+            <Show when={currentView() === 'env-config'}>
+              <EnvConfigGroupList />
+            </Show>
           </main>
         </div>
       }

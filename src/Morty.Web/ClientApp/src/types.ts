@@ -299,3 +299,93 @@ export interface UpdateProjectDto {
   workingDirectory?: string; // 新工作目录
   prdJson?: string;       // 新 PRD
 }
+
+/**
+ * 环境配置组实体
+ * 全局环境变量配置组
+ */
+export interface EnvConfigGroup {
+  id: number;
+  name: string;
+  description: string;
+  createdAt: string;
+  variables: EnvVariable[];
+}
+
+/**
+ * 环境变量实体
+ */
+export interface EnvVariable {
+  id: number;
+  envConfigGroupId: number;
+  key: string;
+  value: string;
+  isRequired: boolean;
+  defaultValue?: string;
+}
+
+/**
+ * 环境变量规则实体
+ */
+export interface EnvConfigRule {
+  id: number;
+  projectId: number;
+  envConfigGroupId: number;
+  fromPhase?: StoryPhase;
+  toPhase?: StoryPhase;
+  tags: string[];
+  priority: number;
+  createdAt: string;
+  envConfigGroup?: EnvConfigGroup;
+}
+
+/**
+ * 创建环境配置组 DTO
+ */
+export interface CreateEnvConfigGroupDto {
+  name: string;
+  description: string;
+  variables: CreateEnvVariableDto[];
+}
+
+/**
+ * 创建环境变量 DTO
+ */
+export interface CreateEnvVariableDto {
+  key: string;
+  value: string;
+  isRequired: boolean;
+  defaultValue?: string;
+}
+
+/**
+ * 更新环境配置组 DTO
+ */
+export interface UpdateEnvConfigGroupDto {
+  name?: string;
+  description?: string;
+  variables?: CreateEnvVariableDto[];
+}
+
+/**
+ * 创建环境变量规则 DTO
+ */
+export interface CreateEnvConfigRuleDto {
+  projectId: number;
+  envConfigGroupId: number;
+  fromPhase?: StoryPhase;
+  toPhase?: StoryPhase;
+  tags: string[];
+  priority: number;
+}
+
+/**
+ * 更新环境变量规则 DTO
+ */
+export interface UpdateEnvConfigRuleDto {
+  envConfigGroupId?: number;
+  fromPhase?: StoryPhase;
+  toPhase?: StoryPhase;
+  tags?: string[];
+  priority?: number;
+}
