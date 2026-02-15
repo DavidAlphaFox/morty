@@ -65,9 +65,7 @@ namespace Morty.Infrastructure.Data.Migrations
                     CompletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     Phase = table.Column<string>(type: "TEXT", nullable: false),
                     Requirements = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: false),
-                    DetailedPlan = table.Column<string>(type: "TEXT", maxLength: 8000, nullable: false),
-                    UserAcceptanceCriteria = table.Column<string>(type: "TEXT", nullable: false),
-                    AcceptanceCriteria = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: false),
+                    UserAcceptanceCriteria = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: false),
                     CurrentIteration = table.Column<int>(type: "INTEGER", nullable: false),
                     IsPaused = table.Column<bool>(type: "INTEGER", nullable: false),
                     Source = table.Column<string>(type: "TEXT", nullable: false)
@@ -139,10 +137,12 @@ namespace Morty.Infrastructure.Data.Migrations
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     StoryId = table.Column<int>(type: "INTEGER", nullable: false),
-                    PlanContent = table.Column<string>(type: "TEXT", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     Type = table.Column<string>(type: "TEXT", nullable: false),
-                    Output = table.Column<string>(type: "TEXT", nullable: false)
+                    Version = table.Column<int>(type: "INTEGER", nullable: false),
+                    PlanContent = table.Column<string>(type: "TEXT", nullable: false),
+                    Output = table.Column<string>(type: "TEXT", nullable: false),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -273,9 +273,10 @@ namespace Morty.Infrastructure.Data.Migrations
                 column: "StoryId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Plans_StoryId",
+                name: "IX_Plans_StoryId_Type_Version",
                 table: "Plans",
-                column: "StoryId");
+                columns: new[] { "StoryId", "Type", "Version" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Stories_ProjectId",

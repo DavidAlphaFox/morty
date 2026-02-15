@@ -31,14 +31,10 @@ public class Story
     // 多阶段处理相关字段
     /// <summary>当前阶段</summary>
     public StoryPhase Phase { get; set; } = StoryPhase.Pending;
-    /// <summary>用户需求（原始 PRD）</summary>
+    /// <summary>用户需求（用户输入）</summary>
     public string Requirements { get; set; } = string.Empty;
-    /// <summary>详细实施计划（RequirementsPlanning 阶段 plan mode 输出）</summary>
-    public string DetailedPlan { get; set; } = string.Empty;
-    /// <summary>用户验收标准（原始）</summary>
+    /// <summary>用户验收标准（用户输入）</summary>
     public string UserAcceptanceCriteria { get; set; } = string.Empty;
-    /// <summary>细化后的验收标准（AcceptancePlanning 阶段 plan mode 输出）</summary>
-    public string AcceptanceCriteria { get; set; } = string.Empty;
     /// <summary>当前阶段内的迭代次数</summary>
     public int CurrentIteration { get; set; } = 0;
     /// <summary>是否暂停（暂停时不参与调度）</summary>
@@ -99,18 +95,23 @@ public class Iteration
 
 /// <summary>
 /// 计划实体
+/// 存储AI生成的各类计划（需求计划、验收标准等）
 /// </summary>
 public class Plan
 {
     public int Id { get; set; }
     public int StoryId { get; set; }
+    /// <summary>计划类型</summary>
+    public PlanType Type { get; set; } = PlanType.DetailedPlan;
+    /// <summary>版本号（同一类型可以有多个版本）</summary>
+    public int Version { get; set; } = 1;
+    /// <summary>计划内容（解析后的结构化内容）</summary>
     public string PlanContent { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    /// <summary>计划类型（规划/执行）</summary>
-    public PlanType Type { get; set; } = PlanType.Planning;
-    /// <summary>完整输出内容</summary>
+    /// <summary>完整输出内容（AI原始输出）</summary>
     public string Output { get; set; } = string.Empty;
+    /// <summary>是否为当前活跃版本</summary>
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public Story Story { get; set; } = null!;
 }
@@ -143,20 +144,10 @@ public enum StoryPhase
 /// </summary>
 public enum PlanType
 {
-    /// <summary>需求计划阶段</summary>
-    RequirementsPlanning,
-    /// <summary>验收标准阶段</summary>
-    AcceptancePlanning,
-    /// <summary>编码阶段</summary>
-    Coding,
-    /// <summary>测试阶段</summary>
-    Testing,
-    /// <summary>验收阶段</summary>
-    Acceptance,
-    /// <summary>规划阶段（兼容旧数据）</summary>
-    Planning,
-    /// <summary>执行阶段（兼容旧数据）</summary>
-    Execution
+    /// <summary>详细实施计划（RequirementsPlanning 阶段生成）</summary>
+    DetailedPlan,
+    /// <summary>细化验收标准（AcceptancePlanning 阶段生成）</summary>
+    AcceptanceCriteria,
 }
 
 /// <summary>

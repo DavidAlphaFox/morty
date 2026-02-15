@@ -164,6 +164,9 @@ namespace Morty.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Output")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -179,9 +182,13 @@ namespace Morty.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Version")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("StoryId");
+                    b.HasIndex("StoryId", "Type", "Version")
+                        .IsUnique();
 
                     b.ToTable("Plans");
                 });
@@ -220,11 +227,6 @@ namespace Morty.Infrastructure.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("AcceptanceCriteria")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("TEXT");
 
@@ -233,11 +235,6 @@ namespace Morty.Infrastructure.Data.Migrations
 
                     b.Property<int>("CurrentIteration")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("DetailedPlan")
-                        .IsRequired()
-                        .HasMaxLength(8000)
-                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsPaused")
                         .HasColumnType("INTEGER");
@@ -280,6 +277,7 @@ namespace Morty.Infrastructure.Data.Migrations
 
                     b.Property<string>("UserAcceptanceCriteria")
                         .IsRequired()
+                        .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");

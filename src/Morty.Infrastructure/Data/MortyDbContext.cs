@@ -60,7 +60,11 @@ public class MortyDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.PlanContent).IsRequired();
+            entity.Property(e => e.Output).IsRequired();
             entity.Property(e => e.Type).HasConversion<string>();
+
+            // 创建索引：StoryId + Type + Version 组合唯一
+            entity.HasIndex(e => new { e.StoryId, e.Type, e.Version }).IsUnique();
 
             entity.HasOne(e => e.Story)
                 .WithMany(s => s.Plans)
@@ -146,8 +150,7 @@ public class MortyDbContext : DbContext
             entity.Property(e => e.Phase).HasConversion<string>();
             entity.Property(e => e.Source).HasConversion<string>();
             entity.Property(e => e.Requirements).HasMaxLength(4000);
-            entity.Property(e => e.DetailedPlan).HasMaxLength(8000);
-            entity.Property(e => e.AcceptanceCriteria).HasMaxLength(4000);
+            entity.Property(e => e.UserAcceptanceCriteria).HasMaxLength(4000);
         });
     }
 }
