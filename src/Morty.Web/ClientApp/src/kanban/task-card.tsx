@@ -1,4 +1,4 @@
-import { createSortable, useDragDropContext } from '@thisbeyond/solid-dnd';
+import { createSortable, useDragDropContext, transformStyle } from '@thisbeyond/solid-dnd';
 import { useKanbanContext } from './kanban-context';
 import type { Story } from '../types';
 
@@ -24,7 +24,7 @@ export function TaskCard(props: TaskCardProps) {
         'happy-kanban-task': true,
         'happy-kanban-task--dragging': sortable.isActiveDraggable,
       }}
-      style={sortable.style}
+      style={transformStyle(sortable.transform)}
       {...sortable.dragActivators}
       onClick={() => kanban.openStoryDetail(props.story)}
     >

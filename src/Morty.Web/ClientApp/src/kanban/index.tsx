@@ -9,8 +9,8 @@ import { useKanbanContext } from './kanban-context';
 import { KanbanColumn } from './kanban-column';
 import { TaskCardOverlay } from './task-card';
 import { TaskDetailSheet } from './task-detail-sheet';
-import type { Story, StoryStatus } from '../types';
-import { STORY_STATUSES } from '../types';
+import type { Story, KanbanColumnId } from '../types';
+import { KANBAN_COLUMNS, PHASE_TO_COLUMN } from '../types';
 
 export function KanbanBoard() {
   const kanban = useKanbanContext();
@@ -20,9 +20,10 @@ export function KanbanBoard() {
     return kanban.stories().find((s) => s.id === id);
   };
 
-  const findColumnForStory = (storyId: number): StoryStatus | undefined => {
+  const findColumnForStory = (storyId: number): KanbanColumnId | undefined => {
     const story = findStoryById(storyId);
-    return story?.status as StoryStatus | undefined;
+    if (!story) return undefined;
+    return PHASE_TO_COLUMN[story.phase];
   };
 
   const handleDragStart = ({ draggable }: any) => {
@@ -40,11 +41,11 @@ export function KanbanBoard() {
     const storyId = draggable.id as number;
     const targetColumnId = droppable.id as string;
 
-    // Check if target is a valid column status
-    if (STORY_STATUSES.includes(targetColumnId as StoryStatus)) {
-      const currentStatus = findColumnForStory(storyId);
-      if (currentStatus && currentStatus !== targetColumnId) {
-        kanban.moveStory(storyId, targetColumnId as StoryStatus);
+    // Check if target is a valid column ID
+    if (KANBAN_COLUMNS.includes(targetColumnId as KanbanColumnId)) {
+      const currentColumn = findColumnForStory(storyId);
+      if (currentColumn && currentColumn !== targetColumnId) {
+        kanban.moveStoryToColumn(storyId, targetColumnId as KanbanColumnId);
       }
     }
   };

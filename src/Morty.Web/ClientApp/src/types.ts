@@ -77,6 +77,57 @@ export const PHASE_CONFIG: Record<StoryPhase, { title: string; color: string }> 
 };
 
 /**
+ * Kanban列ID类型（基于Phase分组，合并为6列）
+ */
+export type KanbanColumnId = 'Pending' | 'Planning' | 'Coding' | 'Testing' | 'Completed' | 'Failed';
+
+/**
+ * 所有Kanban列
+ */
+export const KANBAN_COLUMNS: KanbanColumnId[] = [
+  'Pending', 'Planning', 'Coding', 'Testing', 'Completed', 'Failed'
+];
+
+/**
+ * Phase到Kanban列的映射
+ * 将8个阶段映射到6个Kanban列
+ */
+export const PHASE_TO_COLUMN: Record<StoryPhase, KanbanColumnId> = {
+  Pending: 'Pending',
+  RequirementsPlanning: 'Planning',
+  AcceptancePlanning: 'Planning',  // 合并到Planning
+  Coding: 'Coding',
+  Testing: 'Testing',
+  Acceptance: 'Testing',           // 验收阶段暂时归入Testing
+  Completed: 'Completed',
+  Failed: 'Failed',
+};
+
+/**
+ * Kanban列配置
+ */
+export const KANBAN_COLUMN_CONFIG: Record<KanbanColumnId, { title: string; color: string }> = {
+  Pending:   { title: 'Backlog',   color: '#919eab' },
+  Planning:  { title: 'Planning',  color: '#8b5cf6' },
+  Coding:    { title: 'Coding',    color: '#3b82f6' },
+  Testing:   { title: 'Testing',   color: '#f59e0b' },
+  Completed: { title: 'Done',      color: '#22c55e' },
+  Failed:    { title: 'Failed',    color: '#ef4444' },
+};
+
+/**
+ * Kanban列到默认Phase的映射（用于拖拽时设置phase）
+ */
+export const COLUMN_TO_DEFAULT_PHASE: Record<KanbanColumnId, StoryPhase> = {
+  Pending: 'Pending',
+  Planning: 'RequirementsPlanning',
+  Coding: 'Coding',
+  Testing: 'Testing',
+  Completed: 'Completed',
+  Failed: 'Failed',
+};
+
+/**
  * Kanban 面板列配置
  * 定义每个状态对应的显示名称和颜色
  */
@@ -111,22 +162,35 @@ export interface Story {
   createdAt: string;     // 创建时间 (ISO 格式)
   completedAt: string | null; // 完成时间 (ISO 格式)，未完成则为 null
 
+  // 调度控制字段
+  isPaused: boolean;           // 是否暂停
+  source: StorySource;         // 故事来源
+
   // 多阶段处理相关字段
   phase: StoryPhase;           // 当前阶段
   requirements: string;        // 用户需求（原始 PRD）
-  detailedPlan: string;        // 详细实施计划
-  acceptanceCriteria: string; // 细化后的验收标准
+  detailedPlan: string;        // 详细实施计划（RequirementsPlanning 阶段 plan mode 输出）
+  userAcceptanceCriteria: string; // 用户验收标准（原始）
+  acceptanceCriteria: string; // 细化后的验收标准（AcceptancePlanning 阶段 plan mode 输出）
   currentIteration: number;  // 当前阶段内迭代次数
+
+  // 依赖关系
+  dependencies: number[];      // 依赖的故事ID列表
 }
+
+/**
+ * 故事来源
+ */
+export type StorySource = 'UserAdded' | 'AutoDiscovered';
 
 /**
  * Kanban 面板列
  * 包含特定状态的所有故事
  */
 export interface KanbanColumn {
-  id: StoryStatus;        // 状态 ID
+  id: KanbanColumnId;     // 列 ID
   title: string;          // 显示标题
-  color: string;         // 颜色代码 (十六进制)
+  color: string;          // 颜色代码 (十六进制)
   stories: Story[];       // 该列中的所有故事
 }
 
@@ -177,6 +241,10 @@ export interface CreateStoryDto {
   storyId: string;    // 业务层故事编号
   title: string;      // 故事标题
   priority: Priority; // 优先级
+  source?: StorySource; // 故事来源（默认 UserAdded）
+  requirements?: string; // 用户需求
+  userAcceptanceCriteria?: string; // 用户验收标准
+  dependencies?: number[]; // 依赖的故事ID列表（父任务）
 }
 
 /**
@@ -198,10 +266,10 @@ export interface UpdateRequirementsDto {
 }
 
 /**
- * 更新验收标准的数据传输对象
+ * 更新用户验收标准的数据传输对象
  */
-export interface UpdateAcceptanceCriteriaDto {
-  acceptanceCriteria: string; // 验收标准
+export interface UpdateUserAcceptanceCriteriaDto {
+  userAcceptanceCriteria: string; // 用户验收标准（原始）
 }
 
 /**
@@ -209,4 +277,25 @@ export interface UpdateAcceptanceCriteriaDto {
  */
 export interface StartPhaseDto {
   phase: StoryPhase; // 要开始的阶段
+}
+
+/**
+ * 创建项目的数据传输对象
+ * 用于 POST 请求创建新项目
+ */
+export interface CreateProjectDto {
+  name: string;            // 项目名称
+  workingDirectory: string; // 工作目录路径
+  prdJson: string;        // 产品需求文档 (JSON 格式)
+}
+
+/**
+ * 更新项目的数据传输对象
+ * 用于 PUT 请求更新项目信息
+ * 所有字段都是可选的
+ */
+export interface UpdateProjectDto {
+  name?: string;           // 新名称
+  workingDirectory?: string; // 新工作目录
+  prdJson?: string;       // 新 PRD
 }

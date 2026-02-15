@@ -12,6 +12,7 @@
 @import './components/textarea.css';
 @import './components/sheet.css';
 @import './components/alert-dialog.css';
+@import './components/markdown-editor.css';
 
 /* App */
 @import './app.css';

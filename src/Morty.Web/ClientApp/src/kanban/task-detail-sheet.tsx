@@ -1,11 +1,23 @@
+/**
+ * 任务详情侧边栏
+ * 显示故事的详细信息，包括需求和验收标准
+ * 使用 Markdown 编辑器进行内容编辑
+ */
+
 import { createSignal, createResource, Show, For } from 'solid-js';
 import { SheetRoot, SheetContent } from '@ui/sheet';
 import { TabsRoot, TabsList, TabsTrigger, TabsContent } from '@ui/tabs';
-import { Input } from '@ui/input';
+import { Button } from '@ui/button';
+import { MarkdownEditor, MarkdownViewer } from '@ui/markdown-editor';
 import { useKanbanContext } from './kanban-context';
-import { STORY_STATUSES, COLUMN_CONFIG } from '../types';
-import type { Story, StoryStatus, Priority, Iteration, Plan } from '../types';
-import { fetchStoryIterations, fetchStoryPlan } from '../api/client';
+import {
+  KANBAN_COLUMNS,
+  KANBAN_COLUMN_CONFIG,
+  PHASE_TO_COLUMN,
+  PHASE_CONFIG,
+} from '../types';
+import type { Story, KanbanColumnId, Priority, Iteration } from '../types';
+import { fetchStoryIterations, regeneratePlan, regenerateAcceptance } from '../api/client';
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   High: '#ef4444',
@@ -26,27 +38,79 @@ function formatDuration(ms: number): string {
 
 function TaskDetailContent(props: { story: Story }) {
   const kanban = useKanbanContext();
-  const [showStatusMenu, setShowStatusMenu] = createSignal(false);
+  const [showColumnMenu, setShowColumnMenu] = createSignal(false);
+  const [editingField, setEditingField] = createSignal<string | null>(null);
+  const [regenerating, setRegenerating] = createSignal<string | null>(null);
+
+  // 编辑中的内容（本地状态）
+  const [requirementsDraft, setRequirementsDraft] = createSignal(props.story.requirements);
+  const [acceptanceDraft, setAcceptanceDraft] = createSignal(props.story.userAcceptanceCriteria);
 
   const [iterations] = createResource(
     () => props.story.id,
     (id) => fetchStoryIterations(id)
   );
 
-  const [plan] = createResource(
-    () => props.story.id,
-    (id) => fetchStoryPlan(id)
-  );
+  // Get the column for this story based on its phase
+  const columnId = () => PHASE_TO_COLUMN[props.story.phase];
+  const columnConfig = () => KANBAN_COLUMN_CONFIG[columnId()];
+  const phaseConfig = () => PHASE_CONFIG[props.story.phase];
 
-  const statusConfig = () => COLUMN_CONFIG[props.story.status as StoryStatus];
-
-  const handleStatusChange = (status: StoryStatus) => {
-    kanban.moveStory(props.story.id, status);
-    setShowStatusMenu(false);
+  const handleColumnChange = (column: KanbanColumnId) => {
+    kanban.moveStoryToColumn(props.story.id, column);
+    setShowColumnMenu(false);
   };
 
   const handlePriorityChange = (priority: Priority) => {
     kanban.updateStoryPriority(props.story.id, priority);
+  };
+
+  const startEditing = (field: string) => {
+    setEditingField(field);
+    // 初始化草稿
+    if (field === 'requirements') {
+      setRequirementsDraft(props.story.requirements);
+    } else if (field === 'userAcceptanceCriteria') {
+      setAcceptanceDraft(props.story.userAcceptanceCriteria);
+    }
+  };
+
+  const saveRequirements = async () => {
+    await kanban.updateStory(props.story.id, { requirements: requirementsDraft() });
+    setEditingField(null);
+  };
+
+  const saveAcceptance = async () => {
+    await kanban.updateStory(props.story.id, { userAcceptanceCriteria: acceptanceDraft() });
+    setEditingField(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingField(null);
+  };
+
+  const handleRegeneratePlan = async () => {
+    setRegenerating('plan');
+    try {
+      await regeneratePlan(props.story.id);
+      kanban.refreshStories();
+    } catch (err) {
+      console.error('Failed to regenerate plan:', err);
+    } finally {
+      setRegenerating(null);
+    }
+  };
+
+  const handleRegenerateAcceptance = async () => {
+    setRegenerating('acceptance');
+    try {
+      await regenerateAcceptance(props.story.id);
+      kanban.refreshStories();
+    } catch (err) {
+      console.error('Failed to regenerate acceptance:', err);
+    } finally {
+      setRegenerating(null);
+    }
   };
 
   return (
@@ -56,28 +120,28 @@ function TaskDetailContent(props: { story: Story }) {
         <div class="happy-kanban-detail__status-dropdown">
           <button
             class="happy-kanban-detail__status-btn"
-            style={{ '--status-color': statusConfig().color }}
-            onClick={() => setShowStatusMenu(!showStatusMenu())}
+            style={{ '--status-color': columnConfig().color }}
+            onClick={() => setShowColumnMenu(!showColumnMenu())}
           >
             <span
               class="happy-kanban-detail__status-dot"
-              style={{ background: statusConfig().color }}
+              style={{ background: columnConfig().color }}
             />
-            {statusConfig().title}
+            {columnConfig().title}
           </button>
-          <Show when={showStatusMenu()}>
+          <Show when={showColumnMenu()}>
             <div class="happy-kanban-detail__status-menu">
-              <For each={STORY_STATUSES}>
-                {(status) => (
+              <For each={KANBAN_COLUMNS}>
+                {(column) => (
                   <button
                     class="happy-kanban-detail__status-menu-item"
-                    onClick={() => handleStatusChange(status)}
+                    onClick={() => handleColumnChange(column)}
                   >
                     <span
                       class="happy-kanban-detail__status-dot"
-                      style={{ background: COLUMN_CONFIG[status].color }}
+                      style={{ background: KANBAN_COLUMN_CONFIG[column].color }}
                     />
-                    {COLUMN_CONFIG[status].title}
+                    {KANBAN_COLUMN_CONFIG[column].title}
                   </button>
                 )}
               </For>
@@ -97,21 +161,20 @@ function TaskDetailContent(props: { story: Story }) {
       </div>
 
       {/* Tabs */}
-      <TabsRoot defaultValue="overview" class="happy-kanban-detail__tabs">
+      <TabsRoot defaultValue="details" class="happy-kanban-detail__tabs">
         <TabsList class="happy-kanban-detail__tabs-list">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="iterations">Iterations</TabsTrigger>
-          <TabsTrigger value="plan">Plan</TabsTrigger>
+          <TabsTrigger value="details">详情</TabsTrigger>
+          <TabsTrigger value="iterations">迭代</TabsTrigger>
         </TabsList>
 
-        {/* Overview Tab */}
-        <TabsContent value="overview" class="happy-kanban-detail__panel">
+        {/* Details Tab */}
+        <TabsContent value="details" class="happy-kanban-detail__panel">
           <div class="happy-kanban-detail__overview">
             {/* Story ID */}
             <div class="happy-kanban-detail__row">
               <div class="happy-kanban-detail__row-label">Story ID</div>
               <div class="happy-kanban-detail__row-content">
-                <code style={{ color: 'var(--color-primary)', "font-weight": '600' }}>
+                <code style={{ color: 'var(--color-primary)', 'font-weight': '600' }}>
                   {props.story.storyId}
                 </code>
               </div>
@@ -119,7 +182,7 @@ function TaskDetailContent(props: { story: Story }) {
 
             {/* Title */}
             <div class="happy-kanban-detail__row">
-              <div class="happy-kanban-detail__row-label">Title</div>
+              <div class="happy-kanban-detail__row-label">标题</div>
               <div class="happy-kanban-detail__row-content">
                 <input
                   class="happy-kanban-detail__name-input"
@@ -131,10 +194,10 @@ function TaskDetailContent(props: { story: Story }) {
 
             {/* Priority */}
             <div class="happy-kanban-detail__row">
-              <div class="happy-kanban-detail__row-label">Priority</div>
+              <div class="happy-kanban-detail__row-label">优先级</div>
               <div class="happy-kanban-detail__row-content">
                 <div class="happy-kanban-detail__priority-group">
-                  <For each={(['High', 'Medium', 'Low'] as Priority[])}>
+                  <For each={['High', 'Medium', 'Low'] as Priority[]}>
                     {(p) => (
                       <button
                         classList={{
@@ -143,13 +206,15 @@ function TaskDetailContent(props: { story: Story }) {
                         }}
                         onClick={() => handlePriorityChange(p)}
                       >
-                        <span style={{
-                          display: 'inline-block',
-                          width: '8px',
-                          height: '8px',
-                          'border-radius': '50%',
-                          background: PRIORITY_COLORS[p],
-                        }} />
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: '8px',
+                            height: '8px',
+                            'border-radius': '50%',
+                            background: PRIORITY_COLORS[p],
+                          }}
+                        />
                         {p}
                       </button>
                     )}
@@ -158,37 +223,183 @@ function TaskDetailContent(props: { story: Story }) {
               </div>
             </div>
 
-            {/* Status */}
+            {/* Phase */}
             <div class="happy-kanban-detail__row">
-              <div class="happy-kanban-detail__row-label">Status</div>
+              <div class="happy-kanban-detail__row-label">阶段</div>
               <div class="happy-kanban-detail__row-content">
-                <span style={{
-                  color: statusConfig().color,
-                  'font-weight': '600',
-                  'font-size': '0.875rem',
-                }}>
-                  {statusConfig().title}
+                <span
+                  style={{
+                    color: phaseConfig().color,
+                    'font-weight': '600',
+                    'font-size': '0.875rem',
+                  }}
+                >
+                  {phaseConfig().title}
                 </span>
               </div>
             </div>
 
             {/* Created */}
             <div class="happy-kanban-detail__row">
-              <div class="happy-kanban-detail__row-label">Created</div>
-              <div class="happy-kanban-detail__row-content" style={{ 'font-size': '0.875rem', color: 'var(--color-muted-foreground)' }}>
+              <div class="happy-kanban-detail__row-label">创建时间</div>
+              <div
+                class="happy-kanban-detail__row-content"
+                style={{ 'font-size': '0.875rem', color: 'var(--color-muted-foreground)' }}
+              >
                 {formatDate(props.story.createdAt)}
               </div>
             </div>
 
-            {/* Completed */}
-            <Show when={props.story.completedAt}>
-              <div class="happy-kanban-detail__row">
-                <div class="happy-kanban-detail__row-label">Completed</div>
-                <div class="happy-kanban-detail__row-content" style={{ 'font-size': '0.875rem', color: 'var(--color-muted-foreground)' }}>
-                  {formatDate(props.story.completedAt)}
-                </div>
+            {/* Divider */}
+            <div class="happy-kanban-detail__divider" />
+
+            {/* Requirements - User Input */}
+            <div class="happy-kanban-detail__section">
+              <div class="happy-kanban-detail__section-header">
+                <h4 class="happy-kanban-detail__section-title">📋 用户需求</h4>
+                <Show when={editingField() !== 'requirements'}>
+                  <button
+                    class="happy-kanban-detail__edit-btn"
+                    onClick={() => startEditing('requirements')}
+                  >
+                    编辑
+                  </button>
+                </Show>
               </div>
-            </Show>
+              <Show when={editingField() === 'requirements'}>
+                <div class="happy-kanban-detail__editor-area">
+                  <MarkdownEditor
+                    content={requirementsDraft()}
+                    onChange={setRequirementsDraft}
+                    placeholder="输入用户需求（支持 Markdown 格式）..."
+                    minHeight="200px"
+                  />
+                  <div class="happy-kanban-detail__edit-actions">
+                    <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                      取消
+                    </Button>
+                    <Button variant="primary" size="sm" onClick={saveRequirements}>
+                      保存
+                    </Button>
+                  </div>
+                </div>
+              </Show>
+              <Show when={editingField() !== 'requirements'}>
+                <Show
+                  when={props.story.requirements}
+                  fallback={
+                    <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--empty">
+                      暂无需求描述，点击编辑添加
+                    </div>
+                  }
+                >
+                  <div class="happy-kanban-detail__content-box">
+                    <MarkdownViewer content={props.story.requirements} />
+                  </div>
+                </Show>
+              </Show>
+            </div>
+
+            {/* User Acceptance Criteria - User Input */}
+            <div class="happy-kanban-detail__section">
+              <div class="happy-kanban-detail__section-header">
+                <h4 class="happy-kanban-detail__section-title">✅ 验收标准（用户）</h4>
+                <Show when={editingField() !== 'userAcceptanceCriteria'}>
+                  <button
+                    class="happy-kanban-detail__edit-btn"
+                    onClick={() => startEditing('userAcceptanceCriteria')}
+                  >
+                    编辑
+                  </button>
+                </Show>
+              </div>
+              <Show when={editingField() === 'userAcceptanceCriteria'}>
+                <div class="happy-kanban-detail__editor-area">
+                  <MarkdownEditor
+                    content={acceptanceDraft()}
+                    onChange={setAcceptanceDraft}
+                    placeholder="输入验收标准（支持 Markdown 格式）..."
+                    minHeight="150px"
+                  />
+                  <div class="happy-kanban-detail__edit-actions">
+                    <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                      取消
+                    </Button>
+                    <Button variant="primary" size="sm" onClick={saveAcceptance}>
+                      保存
+                    </Button>
+                  </div>
+                </div>
+              </Show>
+              <Show when={editingField() !== 'userAcceptanceCriteria'}>
+                <Show
+                  when={props.story.userAcceptanceCriteria}
+                  fallback={
+                    <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--empty">
+                      暂无验收标准，点击编辑添加
+                    </div>
+                  }
+                >
+                  <div class="happy-kanban-detail__content-box">
+                    <MarkdownViewer content={props.story.userAcceptanceCriteria} />
+                  </div>
+                </Show>
+              </Show>
+            </div>
+
+            {/* Detailed Plan - AI Generated */}
+            <div class="happy-kanban-detail__section">
+              <div class="happy-kanban-detail__section-header">
+                <h4 class="happy-kanban-detail__section-title">🤖 详细计划（AI生成）</h4>
+                <button
+                  class="happy-kanban-detail__regenerate-btn"
+                  onClick={handleRegeneratePlan}
+                  disabled={regenerating() !== null || !props.story.requirements}
+                  title={!props.story.requirements ? '请先填写用户需求' : '重新生成计划'}
+                >
+                  {regenerating() === 'plan' ? '生成中...' : '重新生成'}
+                </button>
+              </div>
+              <Show
+                when={props.story.detailedPlan}
+                fallback={
+                  <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--ai happy-kanban-detail__content-box--empty">
+                    暂无详细计划，点击"重新生成"由AI生成
+                  </div>
+                }
+              >
+                <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--ai">
+                  <MarkdownViewer content={props.story.detailedPlan} />
+                </div>
+              </Show>
+            </div>
+
+            {/* Acceptance Criteria - AI Generated */}
+            <div class="happy-kanban-detail__section">
+              <div class="happy-kanban-detail__section-header">
+                <h4 class="happy-kanban-detail__section-title">🎯 细化验收标准（AI生成）</h4>
+                <button
+                  class="happy-kanban-detail__regenerate-btn"
+                  onClick={handleRegenerateAcceptance}
+                  disabled={regenerating() !== null || !props.story.detailedPlan}
+                  title={!props.story.detailedPlan ? '请先生成详细计划' : '重新生成验收标准'}
+                >
+                  {regenerating() === 'acceptance' ? '生成中...' : '重新生成'}
+                </button>
+              </div>
+              <Show
+                when={props.story.acceptanceCriteria}
+                fallback={
+                  <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--ai happy-kanban-detail__content-box--empty">
+                    暂无细化验收标准，点击"重新生成"由AI生成
+                  </div>
+                }
+              >
+                <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--ai">
+                  <MarkdownViewer content={props.story.acceptanceCriteria} />
+                </div>
+              </Show>
+            </div>
           </div>
         </TabsContent>
 
@@ -196,11 +407,19 @@ function TaskDetailContent(props: { story: Story }) {
         <TabsContent value="iterations" class="happy-kanban-detail__panel">
           <Show
             when={!iterations.loading}
-            fallback={<div class="happy-kanban-detail__empty"><p>Loading iterations...</p></div>}
+            fallback={
+              <div class="happy-kanban-detail__empty">
+                <p>加载迭代记录...</p>
+              </div>
+            }
           >
             <Show
               when={iterations()?.length}
-              fallback={<div class="happy-kanban-detail__empty"><p>No iterations yet</p></div>}
+              fallback={
+                <div class="happy-kanban-detail__empty">
+                  <p>暂无迭代记录</p>
+                </div>
+              }
             >
               <div class="happy-kanban-detail__iterations">
                 <For each={iterations()}>
@@ -208,7 +427,7 @@ function TaskDetailContent(props: { story: Story }) {
                     <div class="happy-kanban-detail__iteration">
                       <div class="happy-kanban-detail__iteration-header">
                         <span class="happy-kanban-detail__iteration-num">
-                          Iteration #{iter.iterationNum}
+                          迭代 #{iter.iterationNum}
                         </span>
                         <span class="happy-kanban-detail__iteration-duration">
                           {formatDuration(iter.durationMs)}
@@ -216,41 +435,15 @@ function TaskDetailContent(props: { story: Story }) {
                       </div>
                       <div class="happy-kanban-detail__iteration-time">
                         {formatDate(iter.startedAt)}
-                        {iter.completedAt ? ` → ${formatDate(iter.completedAt)}` : ' (running)'}
+                        {iter.completedAt ? ` → ${formatDate(iter.completedAt)}` : ' (运行中)'}
                       </div>
                       <Show when={iter.output}>
-                        <div class="happy-kanban-detail__iteration-output">
-                          {iter.output}
-                        </div>
+                        <div class="happy-kanban-detail__iteration-output">{iter.output}</div>
                       </Show>
                     </div>
                   )}
                 </For>
               </div>
-            </Show>
-          </Show>
-        </TabsContent>
-
-        {/* Plan Tab */}
-        <TabsContent value="plan" class="happy-kanban-detail__panel">
-          <Show
-            when={!plan.loading}
-            fallback={<div class="happy-kanban-detail__empty"><p>Loading plan...</p></div>}
-          >
-            <Show
-              when={plan()}
-              fallback={<div class="happy-kanban-detail__empty"><p>No plan generated yet</p></div>}
-            >
-              {(planData) => (
-                <div class="happy-kanban-detail__plan">
-                  <div class="happy-kanban-detail__plan-content">
-                    {planData().planContent}
-                  </div>
-                  <div style={{ 'font-size': '0.75rem', color: 'var(--color-muted-foreground)' }}>
-                    Generated: {formatDate(planData().createdAt)}
-                  </div>
-                </div>
-              )}
             </Show>
           </Show>
         </TabsContent>

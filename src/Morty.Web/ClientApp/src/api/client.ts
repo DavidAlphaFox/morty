@@ -4,7 +4,7 @@
  * 包含项目、故事、迭代等数据的 CRUD 操作
  */
 
-import type { Project, Story, Iteration, Plan, CreateStoryDto, UpdateStoryDto, UpdateRequirementsDto, UpdateAcceptanceCriteriaDto, StartPhaseDto } from '../types';
+import type { Project, Story, Iteration, Plan, CreateStoryDto, UpdateStoryDto, UpdateRequirementsDto, UpdateUserAcceptanceCriteriaDto, StartPhaseDto, CreateProjectDto, UpdateProjectDto } from '../types';
 
 const BASE = '/api';
 
@@ -31,6 +31,58 @@ export async function fetchProjects(): Promise<Project[]> {
 }
 
 /**
+ * 获取指定项目详情
+ * @param id 项目 ID
+ * @returns 项目对象
+ */
+export async function fetchProject(id: number): Promise<Project> {
+  const res = await fetch(`${BASE}/projects/${id}`);
+  return json<Project>(res);
+}
+
+/**
+ * 创建新项目
+ * @param dto 包含名称、工作目录、PRD的数据传输对象
+ * @returns 创建成功的项目对象
+ */
+export async function createProject(dto: CreateProjectDto): Promise<Project> {
+  const res = await fetch(`${BASE}/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
+  return json<Project>(res);
+}
+
+/**
+ * 更新现有项目的信息
+ * @param id 项目 ID
+ * @param dto 包含要更新的字段的对象
+ * @returns 更新后的项目对象
+ */
+export async function updateProject(id: number, dto: UpdateProjectDto): Promise<Project> {
+  const res = await fetch(`${BASE}/projects/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
+  return json<Project>(res);
+}
+
+/**
+ * 删除项目
+ * @param id 项目 ID
+ */
+export async function deleteProject(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/projects/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(`API error: ${res.status} ${res.statusText}`);
+  }
+}
+
+/**
  * 获取指定项目的所有故事（用户故事）
  * @param projectId 项目 ID
  * @returns 属于该项目的故事数组
@@ -38,6 +90,16 @@ export async function fetchProjects(): Promise<Project[]> {
 export async function fetchProjectStories(projectId: number): Promise<Story[]> {
   const res = await fetch(`${BASE}/projects/${projectId}/stories`);
   return json<Story[]>(res);
+}
+
+/**
+ * 获取指定故事详情
+ * @param id 故事 ID
+ * @returns 故事对象
+ */
+export async function fetchStory(id: number): Promise<Story> {
+  const res = await fetch(`${BASE}/stories/${id}`);
+  return json<Story>(res);
 }
 
 /**
@@ -106,13 +168,13 @@ export async function updateStoryRequirements(id: number, dto: UpdateRequirement
 }
 
 /**
- * 更新故事的验收标准
+ * 更新故事的验收标准（用户原始输入）
  * @param id 故事 ID
  * @param dto 验收标准数据
  * @returns 更新后的故事
  */
-export async function updateStoryAcceptanceCriteria(id: number, dto: UpdateAcceptanceCriteriaDto): Promise<Story> {
-  const res = await fetch(`${BASE}/stories/${id}/acceptance`, {
+export async function updateUserAcceptanceCriteria(id: number, dto: UpdateUserAcceptanceCriteriaDto): Promise<Story> {
+  const res = await fetch(`${BASE}/stories/${id}/user-acceptance`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(dto),
@@ -131,6 +193,32 @@ export async function startStoryPhase(id: number, dto: StartPhaseDto): Promise<S
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(dto),
+  });
+  return json<Story>(res);
+}
+
+/**
+ * 重新生成详细实施计划
+ * @param id 故事 ID
+ * @returns 更新后的故事
+ */
+export async function regeneratePlan(id: number): Promise<Story> {
+  const res = await fetch(`${BASE}/stories/${id}/regenerate-plan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return json<Story>(res);
+}
+
+/**
+ * 重新生成验收标准
+ * @param id 故事 ID
+ * @returns 更新后的故事
+ */
+export async function regenerateAcceptance(id: number): Promise<Story> {
+  const res = await fetch(`${BASE}/stories/${id}/regenerate-acceptance`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
   });
   return json<Story>(res);
 }

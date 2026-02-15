@@ -17,6 +17,39 @@ namespace Morty.Infrastructure.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
 
+            modelBuilder.Entity("Morty.Core.Entities.ClaudeEnvConfig", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DefaultValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ClaudeEnvConfigs");
+                });
+
             modelBuilder.Entity("Morty.Core.Entities.ExecutionOutput", b =>
                 {
                     b.Property<int>("Id")
@@ -43,9 +76,6 @@ namespace Morty.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("ProviderId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("Response")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -53,8 +83,6 @@ namespace Morty.Infrastructure.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("IterationId");
-
-                    b.HasIndex("ProviderId");
 
                     b.ToTable("ExecutionOutputs");
                 });
@@ -81,9 +109,6 @@ namespace Morty.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("ProviderId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("TEXT");
 
@@ -92,11 +117,42 @@ namespace Morty.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProviderId");
-
                     b.HasIndex("StoryId");
 
                     b.ToTable("Iterations");
+                });
+
+            modelBuilder.Entity("Morty.Core.Entities.PhaseHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Output")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("StoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StoryId");
+
+                    b.ToTable("PhaseHistories");
                 });
 
             modelBuilder.Entity("Morty.Core.Entities.Plan", b =>
@@ -116,9 +172,6 @@ namespace Morty.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("ProviderId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("StoryId")
                         .HasColumnType("INTEGER");
 
@@ -127,8 +180,6 @@ namespace Morty.Infrastructure.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ProviderId");
 
                     b.HasIndex("StoryId");
 
@@ -163,61 +214,36 @@ namespace Morty.Infrastructure.Data.Migrations
                     b.ToTable("Projects");
                 });
 
-            modelBuilder.Entity("Morty.Core.Entities.Provider", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ApiUrl")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ConfigJson")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsDefault")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Model")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Providers");
-                });
-
             modelBuilder.Entity("Morty.Core.Entities.Story", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AcceptanceCriteria")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CurrentIteration")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DetailedPlan")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsPaused")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Phase")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Priority")
@@ -227,6 +253,15 @@ namespace Morty.Infrastructure.Data.Migrations
 
                     b.Property<int>("ProjectId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Requirements")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -243,11 +278,39 @@ namespace Morty.Infrastructure.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("UserAcceptanceCriteria")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProjectId");
 
                     b.ToTable("Stories");
+                });
+
+            modelBuilder.Entity("Morty.Core.Entities.StoryDependency", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DependsOnStoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("StoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DependsOnStoryId");
+
+                    b.HasIndex("StoryId");
+
+                    b.ToTable("StoryDependencies");
                 });
 
             modelBuilder.Entity("Morty.Core.Entities.StoryEvent", b =>
@@ -309,6 +372,17 @@ namespace Morty.Infrastructure.Data.Migrations
                     b.ToTable("Verifications");
                 });
 
+            modelBuilder.Entity("Morty.Core.Entities.ClaudeEnvConfig", b =>
+                {
+                    b.HasOne("Morty.Core.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("Morty.Core.Entities.ExecutionOutput", b =>
                 {
                     b.HasOne("Morty.Core.Entities.Iteration", "Iteration")
@@ -317,48 +391,38 @@ namespace Morty.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Morty.Core.Entities.Provider", "Provider")
-                        .WithMany("ExecutionOutputs")
-                        .HasForeignKey("ProviderId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Iteration");
-
-                    b.Navigation("Provider");
                 });
 
             modelBuilder.Entity("Morty.Core.Entities.Iteration", b =>
                 {
-                    b.HasOne("Morty.Core.Entities.Provider", "Provider")
-                        .WithMany("Iterations")
-                        .HasForeignKey("ProviderId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("Morty.Core.Entities.Story", "Story")
                         .WithMany("Iterations")
                         .HasForeignKey("StoryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Provider");
+                    b.Navigation("Story");
+                });
+
+            modelBuilder.Entity("Morty.Core.Entities.PhaseHistory", b =>
+                {
+                    b.HasOne("Morty.Core.Entities.Story", "Story")
+                        .WithMany("PhaseHistories")
+                        .HasForeignKey("StoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Story");
                 });
 
             modelBuilder.Entity("Morty.Core.Entities.Plan", b =>
                 {
-                    b.HasOne("Morty.Core.Entities.Provider", "Provider")
-                        .WithMany("Plans")
-                        .HasForeignKey("ProviderId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("Morty.Core.Entities.Story", "Story")
                         .WithMany("Plans")
                         .HasForeignKey("StoryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Provider");
 
                     b.Navigation("Story");
                 });
@@ -372,6 +436,25 @@ namespace Morty.Infrastructure.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Morty.Core.Entities.StoryDependency", b =>
+                {
+                    b.HasOne("Morty.Core.Entities.Story", "DependsOnStory")
+                        .WithMany("Dependents")
+                        .HasForeignKey("DependsOnStoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Morty.Core.Entities.Story", "Story")
+                        .WithMany("Dependencies")
+                        .HasForeignKey("StoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DependsOnStory");
+
+                    b.Navigation("Story");
                 });
 
             modelBuilder.Entity("Morty.Core.Entities.StoryEvent", b =>
@@ -408,20 +491,17 @@ namespace Morty.Infrastructure.Data.Migrations
                     b.Navigation("Stories");
                 });
 
-            modelBuilder.Entity("Morty.Core.Entities.Provider", b =>
-                {
-                    b.Navigation("ExecutionOutputs");
-
-                    b.Navigation("Iterations");
-
-                    b.Navigation("Plans");
-                });
-
             modelBuilder.Entity("Morty.Core.Entities.Story", b =>
                 {
+                    b.Navigation("Dependencies");
+
+                    b.Navigation("Dependents");
+
                     b.Navigation("Events");
 
                     b.Navigation("Iterations");
+
+                    b.Navigation("PhaseHistories");
 
                     b.Navigation("Plans");
                 });

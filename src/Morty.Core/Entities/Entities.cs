@@ -33,18 +33,49 @@ public class Story
     public StoryPhase Phase { get; set; } = StoryPhase.Pending;
     /// <summary>用户需求（原始 PRD）</summary>
     public string Requirements { get; set; } = string.Empty;
-    /// <summary>详细实施计划</summary>
+    /// <summary>详细实施计划（RequirementsPlanning 阶段 plan mode 输出）</summary>
     public string DetailedPlan { get; set; } = string.Empty;
-    /// <summary>细化后的验收标准</summary>
+    /// <summary>用户验收标准（原始）</summary>
+    public string UserAcceptanceCriteria { get; set; } = string.Empty;
+    /// <summary>细化后的验收标准（AcceptancePlanning 阶段 plan mode 输出）</summary>
     public string AcceptanceCriteria { get; set; } = string.Empty;
     /// <summary>当前阶段内的迭代次数</summary>
     public int CurrentIteration { get; set; } = 0;
+    /// <summary>是否暂停（暂停时不参与调度）</summary>
+    public bool IsPaused { get; set; } = true;
+    /// <summary>故事来源</summary>
+    public StorySource Source { get; set; } = StorySource.UserAdded;
 
     public Project Project { get; set; } = null!;
     public ICollection<Iteration> Iterations { get; set; } = new List<Iteration>();
     public ICollection<Plan> Plans { get; set; } = new List<Plan>();
     public ICollection<StoryEvent> Events { get; set; } = new List<StoryEvent>();
     public ICollection<PhaseHistory> PhaseHistories { get; set; } = new List<PhaseHistory>();
+
+    // 依赖关系 - 当前故事依赖的其他故事
+    public ICollection<StoryDependency> Dependencies { get; set; } = new List<StoryDependency>();
+    // 依赖关系 - 依赖当前故事的其他故事
+    public ICollection<StoryDependency> Dependents { get; set; } = new List<StoryDependency>();
+}
+
+/// <summary>
+/// 故事依赖关系实体
+/// 表示 Story A 依赖于 Story B（必须等 B 完成后才能开始 A）
+/// </summary>
+public class StoryDependency
+{
+    public int Id { get; set; }
+    /// <summary>被阻塞的故事 ID</summary>
+    public int StoryId { get; set; }
+    /// <summary>依赖的故事 ID</summary>
+    public int DependsOnStoryId { get; set; }
+    /// <summary>创建时间</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>被阻塞的故事</summary>
+    public Story Story { get; set; } = null!;
+    /// <summary>依赖的故事</summary>
+    public Story DependsOnStory { get; set; } = null!;
 }
 
 /// <summary>
@@ -126,6 +157,37 @@ public enum PlanType
     Planning,
     /// <summary>执行阶段（兼容旧数据）</summary>
     Execution
+}
+
+/// <summary>
+/// 故事来源枚举
+/// </summary>
+public enum StorySource
+{
+    /// <summary>用户手动添加</summary>
+    UserAdded,
+    /// <summary>自动发现</summary>
+    AutoDiscovered
+}
+
+/// <summary>
+/// Claude 环境变量配置实体
+/// </summary>
+public class ClaudeEnvConfig
+{
+    public int Id { get; set; }
+    /// <summary>所属项目 ID</summary>
+    public int ProjectId { get; set; }
+    /// <summary>环境变量名</summary>
+    public string Key { get; set; } = string.Empty;
+    /// <summary>环境变量值</summary>
+    public string Value { get; set; } = string.Empty;
+    /// <summary>是否必需（必需但不存在时报错）</summary>
+    public bool IsRequired { get; set; } = false;
+    /// <summary>默认值（可选变量不存在时使用）</summary>
+    public string? DefaultValue { get; set; }
+
+    public Project Project { get; set; } = null!;
 }
 
 /// <summary>

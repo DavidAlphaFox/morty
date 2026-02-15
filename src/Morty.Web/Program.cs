@@ -47,6 +47,8 @@ builder.Services.AddScoped<IVerificationRepository, VerificationRepository>();
 builder.Services.AddScoped<IStoryEventRepository, StoryEventRepository>();
 builder.Services.AddScoped<IExecutionOutputRepository, ExecutionOutputRepository>();
 builder.Services.AddScoped<IPhaseHistoryRepository, PhaseHistoryRepository>();
+builder.Services.AddScoped<IStoryDependencyRepository, StoryDependencyRepository>();
+builder.Services.AddScoped<IClaudeEnvConfigRepository, ClaudeEnvConfigRepository>();
 
 // 注册核心服务
 builder.Services.AddSingleton<IResponseAnalyzer, ResponseAnalyzer>();

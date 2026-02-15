@@ -121,3 +121,40 @@ public interface IPhaseHistoryRepository
     /// <summary>更新阶段历史</summary>
     Task UpdateAsync(PhaseHistory phaseHistory, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// 故事依赖关系仓储接口
+/// 定义故事依赖关系数据的持久化操作
+/// </summary>
+public interface IStoryDependencyRepository
+{
+    /// <summary>添加依赖关系</summary>
+    Task<StoryDependency> AddAsync(StoryDependency dependency, CancellationToken cancellationToken = default);
+    /// <summary>删除依赖关系</summary>
+    Task DeleteAsync(int id, CancellationToken cancellationToken = default);
+    /// <summary>获取故事的所有依赖（当前故事依赖的其他故事）</summary>
+    Task<List<Story>> GetDependenciesAsync(int storyId, CancellationToken cancellationToken = default);
+    /// <summary>获取依赖当前故事的所有故事</summary>
+    Task<List<Story>> GetDependentsAsync(int storyId, CancellationToken cancellationToken = default);
+    /// <summary>检查依赖是否已满足（所有依赖的故事都已完成）</summary>
+    Task<bool> AreDependenciesSatisfiedAsync(int storyId, CancellationToken cancellationToken = default);
+    /// <summary>获取所有依赖当前故事都已完成的待处理故事</summary>
+    Task<List<Story>> GetReadyStoriesAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Claude 环境变量配置仓储接口
+/// </summary>
+public interface IClaudeEnvConfigRepository
+{
+    /// <summary>添加配置</summary>
+    Task<ClaudeEnvConfig> AddAsync(ClaudeEnvConfig config, CancellationToken cancellationToken = default);
+    /// <summary>更新配置</summary>
+    Task UpdateAsync(ClaudeEnvConfig config, CancellationToken cancellationToken = default);
+    /// <summary>删除配置</summary>
+    Task DeleteAsync(int id, CancellationToken cancellationToken = default);
+    /// <summary>获取项目的所有环境变量配置</summary>
+    Task<List<ClaudeEnvConfig>> GetByProjectIdAsync(int projectId, CancellationToken cancellationToken = default);
+    /// <summary>获取指定键的配置</summary>
+    Task<ClaudeEnvConfig?> GetByKeyAsync(int projectId, string key, CancellationToken cancellationToken = default);
+}

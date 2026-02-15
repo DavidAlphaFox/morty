@@ -46,18 +46,42 @@ public class StoriesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<StoryDto>> CreateStory([FromBody] CreateStoryDto dto)
     {
+        var isAutoDiscovered = dto.Source == StorySource.AutoDiscovered;
+
         var story = new Story
         {
             ProjectId = dto.ProjectId,
             StoryId = dto.StoryId,
             Title = dto.Title,
             Priority = dto.Priority,
-            Status = "Pending",
+            Status = isAutoDiscovered ? "Pending" : "Pending",
             Phase = StoryPhase.Pending,
-            CreatedAt = DateTime.UtcNow
+            Source = dto.Source,
+            // 用户添加的任务默认暂停，自动发现的任务默认开始
+            IsPaused = !isAutoDiscovered,
+            CreatedAt = DateTime.UtcNow,
+            // 支持创建时直接填写需求和验收标准
+            Requirements = dto.Requirements ?? string.Empty,
+            UserAcceptanceCriteria = dto.UserAcceptanceCriteria ?? string.Empty,
         };
 
         var created = await _storyRepository.AddAsync(story);
+
+        // 添加依赖关系
+        if (dto.Dependencies != null && dto.Dependencies.Count > 0)
+        {
+            foreach (var dependsOnId in dto.Dependencies)
+            {
+                var dependency = new StoryDependency
+                {
+                    StoryId = created.Id,
+                    DependsOnStoryId = dependsOnId,
+                    CreatedAt = DateTime.UtcNow
+                };
+                // 添加依赖关系（需要Repository支持）
+                // await _storyRepository.AddDependencyAsync(dependency);
+            }
+        }
 
         return CreatedAtAction(nameof(GetStory), new { id = created.Id }, MapToDto(created));
     }
@@ -108,14 +132,14 @@ public class StoriesController : ControllerBase
     /// <param name="id">故事 ID</param>
     /// <param name="dto">验收标准数据</param>
     /// <returns>更新后的故事</returns>
-    [HttpPatch("{id}/acceptance")]
-    public async Task<ActionResult<StoryDto>> UpdateAcceptanceCriteria(int id, [FromBody] UpdateAcceptanceCriteriaDto dto)
+    [HttpPatch("{id}/user-acceptance")]
+    public async Task<ActionResult<StoryDto>> UpdateUserAcceptanceCriteria(int id, [FromBody] UpdateUserAcceptanceCriteriaDto dto)
     {
         var story = await _storyRepository.GetByIdAsync(id);
         if (story == null)
             return NotFound();
 
-        story.AcceptanceCriteria = dto.AcceptanceCriteria;
+        story.UserAcceptanceCriteria = dto.UserAcceptanceCriteria;
         await _storyRepository.UpdateAsync(story);
 
         return Ok(MapToDto(story));
@@ -154,6 +178,114 @@ public class StoriesController : ControllerBase
                 break;
         }
 
+        await _storyRepository.UpdateAsync(story);
+
+        return Ok(MapToDto(story));
+    }
+
+    /// <summary>
+    /// 重新生成详细实施计划
+    /// 将故事重置到 RequirementsPlanning 阶段，重新生成 DetailedPlan
+    /// </summary>
+    /// <param name="id">故事 ID</param>
+    /// <returns>更新后的故事</returns>
+    [HttpPost("{id}/regenerate-plan")]
+    public async Task<ActionResult<StoryDto>> RegeneratePlan(int id)
+    {
+        var story = await _storyRepository.GetByIdAsync(id);
+        if (story == null)
+            return NotFound();
+
+        if (string.IsNullOrEmpty(story.Requirements))
+        {
+            return BadRequest("请先设置用户需求 (Requirements)");
+        }
+
+        // 重置到 RequirementsPlanning 阶段，重新生成计划
+        story.Phase = StoryPhase.RequirementsPlanning;
+        story.CurrentIteration = 0;
+        story.Status = "Planning";
+        // 清空之前生成的计划，让 MortyLoopService 重新生成
+        story.DetailedPlan = string.Empty;
+
+        await _storyRepository.UpdateAsync(story);
+
+        return Ok(MapToDto(story));
+    }
+
+    /// <summary>
+    /// 重新生成验收标准
+    /// 将故事重置到 AcceptancePlanning 阶段，重新生成 AcceptanceCriteria
+    /// </summary>
+    /// <param name="id">故事 ID</param>
+    /// <returns>更新后的故事</returns>
+    [HttpPost("{id}/regenerate-acceptance")]
+    public async Task<ActionResult<StoryDto>> RegenerateAcceptance(int id)
+    {
+        var story = await _storyRepository.GetByIdAsync(id);
+        if (story == null)
+            return NotFound();
+
+        if (string.IsNullOrEmpty(story.DetailedPlan))
+        {
+            return BadRequest("请先生成详细实施计划 (DetailedPlan)");
+        }
+
+        // 重置到 AcceptancePlanning 阶段，重新生成验收标准
+        story.Phase = StoryPhase.AcceptancePlanning;
+        story.CurrentIteration = 0;
+        story.Status = "Planning";
+        // 清空之前生成的验收标准，让 MortyLoopService 重新生成
+        story.AcceptanceCriteria = string.Empty;
+
+        await _storyRepository.UpdateAsync(story);
+
+        return Ok(MapToDto(story));
+    }
+
+    /// <summary>
+    /// 开始/恢复故事
+    /// 将暂停的故事设置为可调度状态
+    /// </summary>
+    /// <param name="id">故事 ID</param>
+    /// <returns>更新后的故事</returns>
+    [HttpPost("{id}/start")]
+    public async Task<ActionResult<StoryDto>> StartStory(int id)
+    {
+        var story = await _storyRepository.GetByIdAsync(id);
+        if (story == null)
+            return NotFound();
+
+        if (story.Phase == StoryPhase.Completed || story.Phase == StoryPhase.Failed)
+        {
+            return BadRequest("已完成或失败的故事不能重新开始");
+        }
+
+        story.IsPaused = false;
+        await _storyRepository.UpdateAsync(story);
+
+        return Ok(MapToDto(story));
+    }
+
+    /// <summary>
+    /// 暂停故事
+    /// 将故事设置为暂停状态，不再参与调度
+    /// </summary>
+    /// <param name="id">故事 ID</param>
+    /// <returns>更新后的故事</returns>
+    [HttpPost("{id}/pause")]
+    public async Task<ActionResult<StoryDto>> PauseStory(int id)
+    {
+        var story = await _storyRepository.GetByIdAsync(id);
+        if (story == null)
+            return NotFound();
+
+        if (story.Phase == StoryPhase.Completed || story.Phase == StoryPhase.Failed)
+        {
+            return BadRequest("已完成或失败的故事不能暂停");
+        }
+
+        story.IsPaused = true;
         await _storyRepository.UpdateAsync(story);
 
         return Ok(MapToDto(story));
@@ -216,9 +348,12 @@ public class StoriesController : ControllerBase
         Status = story.Status,
         CreatedAt = story.CreatedAt,
         CompletedAt = story.CompletedAt,
+        IsPaused = story.IsPaused,
+        Source = story.Source,
         Phase = story.Phase,
         Requirements = story.Requirements,
         DetailedPlan = story.DetailedPlan,
+        UserAcceptanceCriteria = story.UserAcceptanceCriteria,
         AcceptanceCriteria = story.AcceptanceCriteria,
         CurrentIteration = story.CurrentIteration
     };

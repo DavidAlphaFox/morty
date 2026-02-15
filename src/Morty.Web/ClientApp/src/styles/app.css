@@ -15,6 +15,13 @@ body {
   flex-direction: column;
 }
 
+/* App Shell */
+.morty-app-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Header */
 .morty-header {
   display: flex;
@@ -26,6 +33,30 @@ body {
   flex-shrink: 0;
 }
 
+.morty-header--centered {
+  justify-content: center;
+}
+
+.morty-header__back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-muted-foreground);
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.morty-header__back-btn:hover {
+  background: var(--color-muted);
+  color: var(--color-foreground);
+}
+
 .morty-logo {
   font-size: 1.5rem;
   font-weight: 800;
@@ -34,70 +65,15 @@ body {
   margin: 0;
 }
 
+.morty-header__project-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  margin-left: 8px;
+}
+
 .morty-header__spacer {
   flex: 1;
-}
-
-/* Project selector */
-.morty-project-selector {
-  position: relative;
-}
-
-.morty-project-selector__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-muted);
-  color: var(--color-foreground);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.15s;
-  min-width: 160px;
-}
-
-.morty-project-selector__btn:hover {
-  border-color: var(--color-primary);
-}
-
-.morty-project-selector__dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
-  min-width: 200px;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 4px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  z-index: var(--z-dropdown);
-}
-
-.morty-project-selector__item {
-  display: block;
-  width: 100%;
-  padding: 8px 12px;
-  border: none;
-  background: none;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  color: var(--color-foreground);
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.15s;
-}
-
-.morty-project-selector__item:hover {
-  background: var(--color-muted);
-}
-
-.morty-project-selector__item--active {
-  background: var(--color-muted);
-  color: var(--color-primary);
 }
 
 /* Connection badge */
@@ -139,7 +115,510 @@ body {
   overflow: hidden;
 }
 
-/* Empty state */
+.morty-main--centered {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Project List Page */
+.morty-project-list {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  width: 100%;
+}
+
+.morty-project-list__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+}
+
+.morty-project-list__title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--color-foreground);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.morty-project-list__create-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.morty-project-list__create-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.morty-project-list__loading {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--color-muted-foreground);
+  font-size: 1rem;
+}
+
+.morty-project-list__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+  color: var(--color-muted-foreground);
+}
+
+.morty-project-list__empty-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.morty-project-list__empty-text {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.morty-project-list__empty-hint {
+  font-size: 0.875rem;
+  opacity: 0.7;
+}
+
+.morty-project-list__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+/* Project Card */
+.morty-project-card {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 20px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.morty-project-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.morty-project-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.morty-project-card__icon {
+  font-size: 1.5rem;
+}
+
+.morty-project-card__name {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-foreground);
+  margin: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.morty-project-card__path {
+  font-size: 0.8125rem;
+  color: var(--color-muted-foreground);
+  font-family: monospace;
+  background: var(--color-muted);
+  padding: 6px 10px;
+  border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 16px;
+}
+
+.morty-project-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.morty-project-card__date {
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+}
+
+.morty-project-card__action {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* Create Project Form Modal */
+.morty-create-project-form {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.morty-create-project-form__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.morty-create-project-form__modal {
+  position: relative;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+  margin: 20px;
+}
+
+.morty-create-project-form__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.morty-create-project-form__header h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--color-foreground);
+}
+
+.morty-create-project-form__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-muted-foreground);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.morty-create-project-form__close:hover {
+  background: var(--color-muted);
+  color: var(--color-foreground);
+}
+
+.morty-create-project-form__body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.morty-create-project-form__error {
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  color: #ef4444;
+  font-size: 0.875rem;
+}
+
+.morty-create-project-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.morty-create-project-form__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.morty-create-project-form__textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-muted);
+  color: var(--color-foreground);
+  font-family: monospace;
+  font-size: 0.875rem;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+
+.morty-create-project-form__textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.morty-create-project-form__textarea::placeholder {
+  color: var(--color-muted-foreground);
+}
+
+.morty-create-project-form__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+/* Large modal variant */
+.morty-modal--large .morty-modal__content {
+  max-width: 640px;
+}
+
+/* Modal tabs */
+.morty-modal__tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-muted);
+}
+
+.morty-modal__tab {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--color-muted-foreground);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.morty-modal__tab:hover {
+  color: var(--color-foreground);
+  background: color-mix(in srgb, var(--color-foreground) 5%, transparent);
+}
+
+.morty-modal__tab--active {
+  color: var(--color-primary);
+  background: var(--color-background);
+}
+
+.morty-modal__tab--active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-primary);
+}
+
+.morty-modal__tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 9px;
+}
+
+/* Modal tab content */
+.morty-modal__tab-content {
+  padding: 4px 0;
+}
+
+/* Modal hint text */
+.morty-modal__hint {
+  margin: 0 0 10px;
+  font-size: 0.8125rem;
+  color: var(--color-muted-foreground);
+  line-height: 1.4;
+}
+
+/* Modal editor wrapper */
+.morty-modal__editor-wrapper {
+  margin-top: 8px;
+}
+
+/* Dependencies selector */
+.morty-dependencies__selected {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--color-muted);
+  border-radius: 8px;
+}
+
+.morty-dependencies__selected-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  margin-bottom: 8px;
+}
+
+.morty-dependencies__selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.morty-dependencies__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+.morty-dependencies__chip-id {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.morty-dependencies__chip-title {
+  color: var(--color-foreground);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.morty-dependencies__chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-muted-foreground);
+  font-size: 0.625rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.morty-dependencies__chip-remove:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.morty-dependencies__empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-muted-foreground);
+  font-size: 0.875rem;
+  background: var(--color-muted);
+  border-radius: 8px;
+}
+
+.morty-dependencies__list {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.morty-dependencies__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.morty-dependencies__item:last-child {
+  border-bottom: none;
+}
+
+.morty-dependencies__item:hover {
+  background: var(--color-muted);
+}
+
+.morty-dependencies__item-checkbox {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: #fff;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.morty-dependencies__item:has(.morty-dependencies__item-checkbox:not(:empty)) .morty-dependencies__item-checkbox {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.morty-dependencies__item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.morty-dependencies__item-id {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.morty-dependencies__item-title {
+  color: var(--color-foreground);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Empty state (legacy) */
 .morty-empty {
   display: flex;
   flex-direction: column;
@@ -158,4 +637,30 @@ body {
 .morty-empty__text {
   font-size: 1.125rem;
   font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .morty-project-list {
+    padding: 24px 16px;
+  }
+
+  .morty-project-list__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .morty-project-list__create-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .morty-create-project-form__modal {
+    margin: 10px;
+  }
+
+  .morty-header__project-name {
+    display: none;
+  }
 }

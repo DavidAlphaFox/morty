@@ -17,6 +17,8 @@ public class MortyDbContext : DbContext
     public DbSet<StoryEvent> StoryEvents => Set<StoryEvent>();
     public DbSet<ExecutionOutput> ExecutionOutputs => Set<ExecutionOutput>();
     public DbSet<PhaseHistory> PhaseHistories => Set<PhaseHistory>();
+    public DbSet<StoryDependency> StoryDependencies => Set<StoryDependency>();
+    public DbSet<ClaudeEnvConfig> ClaudeEnvConfigs => Set<ClaudeEnvConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -109,9 +111,40 @@ public class MortyDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<StoryDependency>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // StoryId - 被阻塞的故事
+            entity.HasOne(e => e.Story)
+                .WithMany(s => s.Dependencies)
+                .HasForeignKey(e => e.StoryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // DependsOnStoryId - 依赖的故事
+            entity.HasOne(e => e.DependsOnStory)
+                .WithMany(s => s.Dependents)
+                .HasForeignKey(e => e.DependsOnStoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ClaudeEnvConfig>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Key).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Value).HasMaxLength(500);
+            entity.Property(e => e.DefaultValue).HasMaxLength(500);
+
+            entity.HasOne(e => e.Project)
+                .WithMany()
+                .HasForeignKey(e => e.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Story>(entity =>
         {
             entity.Property(e => e.Phase).HasConversion<string>();
+            entity.Property(e => e.Source).HasConversion<string>();
             entity.Property(e => e.Requirements).HasMaxLength(4000);
             entity.Property(e => e.DetailedPlan).HasMaxLength(8000);
             entity.Property(e => e.AcceptanceCriteria).HasMaxLength(4000);

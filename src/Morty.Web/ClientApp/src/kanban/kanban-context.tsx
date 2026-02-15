@@ -6,9 +6,9 @@
 
 import { createSignal, createMemo, createEffect, onCleanup, type Accessor, type ParentComponent } from 'solid-js';
 import { createSafeContext } from '@ui/shared';
-import type { Story, StoryStatus, Priority, KanbanColumn } from '../types';
-import { STORY_STATUSES, COLUMN_CONFIG } from '../types';
-import { fetchProjectStories, createStory as apiCreateStory, updateStory as apiUpdateStory } from '../api/client';
+import type { Story, StoryPhase, Priority, KanbanColumn, KanbanColumnId } from '../types';
+import { KANBAN_COLUMNS, KANBAN_COLUMN_CONFIG, PHASE_TO_COLUMN, COLUMN_TO_DEFAULT_PHASE } from '../types';
+import { fetchProjectStories, createStory as apiCreateStory, startStoryPhase, updateStory as apiUpdateStory, updateStoryRequirements, updateUserAcceptanceCriteria, regeneratePlan, regenerateAcceptance } from '../api/client';
 import { createSignalRConnection, type SignalRCallbacks } from '../api/signalr';
 
 /**
@@ -23,9 +23,17 @@ export interface KanbanContextValue {
   connectionStatus: Accessor<'connected' | 'disconnected' | 'connecting'>; // SignalR 连接状态
 
   setProject: (projectId: number) => void; // 设置当前项目
-  addStory: (status: StoryStatus, title: string) => Promise<void>; // 添加新故事
-  moveStory: (storyId: number, toStatus: StoryStatus) => Promise<void>; // 移动故事到其他列
+  addStory: (
+    columnId: KanbanColumnId,
+    title: string,
+    priority?: Priority,
+    requirements?: string,
+    userAcceptanceCriteria?: string,
+    dependencies?: number[]
+  ) => Promise<void>; // 添加新故事
+  moveStoryToColumn: (storyId: number, toColumn: KanbanColumnId) => Promise<void>; // 移动故事到其他列
   updateStoryPriority: (storyId: number, priority: Priority) => Promise<void>; // 更新故事优先级
+  updateStory: (storyId: number, updates: Partial<Story>) => Promise<void>; // 更新故事（需求、验收标准等）
   openStoryDetail: (story: Story) => void; // 打开故事详情
   closeStoryDetail: () => void; // 关闭故事详情
   refreshStories: () => Promise<void>; // 刷新故事列表
@@ -57,15 +65,15 @@ export const KanbanProvider: ParentComponent = (props) => {
 
   /**
    * 计算列数据
-   * 根据故事状态自动分组
+   * 根据故事阶段（phase）和映射关系自动分组
    */
   const columns = createMemo<KanbanColumn[]>(() => {
     const allStories = stories();
-    return STORY_STATUSES.map((status) => ({
-      id: status,
-      title: COLUMN_CONFIG[status].title,
-      color: COLUMN_CONFIG[status].color,
-      stories: allStories.filter((s) => s.status === status),
+    return KANBAN_COLUMNS.map((columnId) => ({
+      id: columnId,
+      title: KANBAN_COLUMN_CONFIG[columnId].title,
+      color: KANBAN_COLUMN_CONFIG[columnId].color,
+      stories: allStories.filter((s) => PHASE_TO_COLUMN[s.phase] === columnId),
     }));
   });
 
@@ -150,12 +158,22 @@ export const KanbanProvider: ParentComponent = (props) => {
    * 添加新故事
    * 使用乐观更新：先显示临时故事，失败则回滚
    */
-  const addStory = async (status: StoryStatus, title: string) => {
+  const addStory = async (
+    columnId: KanbanColumnId,
+    title: string,
+    priority: Priority = 'Medium',
+    requirements: string = '',
+    userAcceptanceCriteria: string = '',
+    dependencies: number[] = []
+  ) => {
     const pid = projectId();
     if (!pid) return;
 
     // 生成故事 ID
     const storyId = `S-${Date.now().toString(36).toUpperCase()}`;
+
+    // 根据列ID获取默认阶段
+    const defaultPhase = COLUMN_TO_DEFAULT_PHASE[columnId];
 
     // 乐观更新：立即添加
     const tempStory: Story = {
@@ -163,10 +181,22 @@ export const KanbanProvider: ParentComponent = (props) => {
       projectId: pid,
       storyId,
       title,
-      priority: 'Medium',
-      status,
+      priority,
+      status: 'Pending',
       createdAt: new Date().toISOString(),
       completedAt: null,
+      // 调度控制字段
+      isPaused: true,
+      source: 'UserAdded',
+      // 多阶段处理字段默认值
+      phase: defaultPhase,
+      requirements,
+      detailedPlan: '',
+      userAcceptanceCriteria,
+      acceptanceCriteria: '',
+      currentIteration: 0,
+      // 依赖关系
+      dependencies,
     };
     setStories((prev) => [...prev, tempStory]);
 
@@ -175,7 +205,11 @@ export const KanbanProvider: ParentComponent = (props) => {
         projectId: pid,
         storyId,
         title,
-        priority: 'Medium',
+        priority,
+        source: 'UserAdded',
+        requirements: requirements || undefined,
+        userAcceptanceCriteria: userAcceptanceCriteria || undefined,
+        dependencies: dependencies.length > 0 ? dependencies : undefined,
       });
       // 用真实故事替换临时故事
       setStories((prev) => prev.map((s) => (s.id === tempStory.id ? created : s)));
@@ -188,16 +222,19 @@ export const KanbanProvider: ParentComponent = (props) => {
 
   /**
    * 将故事移动到其他列
-   * 使用乐观更新，失败则刷新列表
+   * 通过更新phase来实现，使用乐观更新，失败则刷新列表
    */
-  const moveStory = async (storyId: number, toStatus: StoryStatus) => {
+  const moveStoryToColumn = async (storyId: number, toColumn: KanbanColumnId) => {
+    // 获取目标列对应的默认阶段
+    const targetPhase = COLUMN_TO_DEFAULT_PHASE[toColumn];
+
     // 乐观更新
     setStories((prev) =>
-      prev.map((s) => (s.id === storyId ? { ...s, status: toStatus } : s))
+      prev.map((s) => (s.id === storyId ? { ...s, phase: targetPhase } : s))
     );
 
     try {
-      const updated = await apiUpdateStory(storyId, { status: toStatus });
+      const updated = await startStoryPhase(storyId, { phase: targetPhase });
       setStories((prev) => prev.map((s) => (s.id === storyId ? updated : s)));
     } catch (err) {
       console.error('Failed to move story:', err);
@@ -229,6 +266,46 @@ export const KanbanProvider: ParentComponent = (props) => {
   };
 
   /**
+   * 更新故事（需求、验收标准等）
+   */
+  const updateStory = async (storyId: number, updates: Partial<Story>) => {
+    // 乐观更新
+    setStories((prev) =>
+      prev.map((s) => (s.id === storyId ? { ...s, ...updates } : s))
+    );
+
+    try {
+      let updated: Story;
+
+      // 根据更新类型调用不同的API
+      if (updates.requirements !== undefined) {
+        updated = await updateStoryRequirements(storyId, { requirements: updates.requirements });
+      } else if (updates.userAcceptanceCriteria !== undefined) {
+        updated = await updateUserAcceptanceCriteria(storyId, { userAcceptanceCriteria: updates.userAcceptanceCriteria });
+      } else if (updates.detailedPlan !== undefined && updates.detailedPlan === '') {
+        // 重新生成计划
+        updated = await regeneratePlan(storyId);
+      } else if (updates.acceptanceCriteria !== undefined && updates.acceptanceCriteria === '') {
+        // 重新生成验收标准
+        updated = await regenerateAcceptance(storyId);
+      } else {
+        // 其他更新使用通用API
+        updated = await apiUpdateStory(storyId, updates as any);
+      }
+
+      setStories((prev) => prev.map((s) => (s.id === storyId ? updated : s)));
+      // 更新选中故事
+      const sel = selectedStory();
+      if (sel && sel.id === storyId) {
+        setSelectedStory(updated);
+      }
+    } catch (err) {
+      console.error('Failed to update story:', err);
+      refreshStories();
+    }
+  };
+
+  /**
    * 打开故事详情面板
    */
   const openStoryDetail = (story: Story) => {
@@ -251,8 +328,9 @@ export const KanbanProvider: ParentComponent = (props) => {
     connectionStatus,
     setProject,
     addStory,
-    moveStory,
+    moveStoryToColumn,
     updateStoryPriority,
+    updateStory,
     openStoryDetail,
     closeStoryDetail,
     refreshStories,

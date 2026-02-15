@@ -99,13 +99,22 @@ public class MortyLoopService : BackgroundService
         var storyEventRepo = scope.ServiceProvider.GetRequiredService<IStoryEventRepository>();
         var executionOutputRepo = scope.ServiceProvider.GetRequiredService<IExecutionOutputRepository>();
         var phaseHistoryRepo = scope.ServiceProvider.GetRequiredService<IPhaseHistoryRepository>();
+        var storyDependencyRepo = scope.ServiceProvider.GetRequiredService<IStoryDependencyRepository>();
 
-        // 获取下一个待处理的故事（支持多阶段）
+        // 获取下一个待处理的故事（支持多阶段），并检查依赖关系
         var story = await storyRepo.GetNextPendingAsync(stoppingToken);
 
         if (story == null)
         {
             _logger.Debug("没有待处理的故事");
+            return;
+        }
+
+        // 检查依赖是否已满足
+        var dependenciesSatisfied = await storyDependencyRepo.AreDependenciesSatisfiedAsync(story.Id, stoppingToken);
+        if (!dependenciesSatisfied)
+        {
+            _logger.Debug("故事 {StoryId} 的依赖尚未满足，跳过处理", story.StoryId);
             return;
         }
 
@@ -282,9 +291,12 @@ public class MortyLoopService : BackgroundService
                 Status = story.Status,
                 CreatedAt = story.CreatedAt,
                 CompletedAt = story.CompletedAt,
+                IsPaused = story.IsPaused,
+                Source = story.Source,
                 Phase = story.Phase,
                 Requirements = story.Requirements,
                 DetailedPlan = story.DetailedPlan,
+                UserAcceptanceCriteria = story.UserAcceptanceCriteria,
                 AcceptanceCriteria = story.AcceptanceCriteria,
                 CurrentIteration = story.CurrentIteration
             };
@@ -344,7 +356,7 @@ public class MortyLoopService : BackgroundService
                 """,
 
             StoryPhase.AcceptancePlanning => $"""
-                请根据以下用户故事和需求，细化验收标准。
+                请根据以下用户故事、需求和原始验收标准，细化验收标准。
 
                 用户故事: {story.Title}
                 故事 ID: {story.StoryId}
@@ -352,7 +364,10 @@ public class MortyLoopService : BackgroundService
                 详细实施计划:
                 {story.DetailedPlan}
 
-                请生成细化的验收标准，包括：
+                用户提供的验收标准:
+                {story.UserAcceptanceCriteria}
+
+                请基于以上信息生成细化的验收标准，包括：
                 1. 功能验收标准（具体、可测试）
                 2. 非功能验收标准（如性能、安全等）
                 3. 边界条件和异常情况

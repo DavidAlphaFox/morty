@@ -83,12 +83,13 @@ public class StoryRepository : IStoryRepository
     public async Task<Story?> GetNextPendingAsync(CancellationToken cancellationToken = default)
     {
         return await _context.Stories
-            .Where(s => s.Status == "Pending" || s.Status == "InProgress"
+            .Where(s => !s.IsPaused
+                && (s.Status == "Pending" || s.Status == "InProgress"
                 || s.Phase == StoryPhase.RequirementsPlanning
                 || s.Phase == StoryPhase.AcceptancePlanning
                 || s.Phase == StoryPhase.Coding
                 || s.Phase == StoryPhase.Testing
-                || s.Phase == StoryPhase.Acceptance)
+                || s.Phase == StoryPhase.Acceptance))
             .OrderBy(s => s.Priority == "High" ? 0 : s.Priority == "Medium" ? 1 : 2)
             .ThenBy(s => s.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
@@ -319,5 +320,143 @@ public class PhaseHistoryRepository : IPhaseHistoryRepository
     {
         _context.PhaseHistories.Update(phaseHistory);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+}
+
+/// <summary>
+/// 故事依赖关系仓储实现
+/// 负责故事依赖关系数据的数据库操作
+/// </summary>
+public class StoryDependencyRepository : IStoryDependencyRepository
+{
+    private readonly MortyDbContext _context;
+
+    public StoryDependencyRepository(MortyDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<StoryDependency> AddAsync(StoryDependency dependency, CancellationToken cancellationToken = default)
+    {
+        _context.StoryDependencies.Add(dependency);
+        await _context.SaveChangesAsync(cancellationToken);
+        return dependency;
+    }
+
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var dependency = await _context.StoryDependencies.FindAsync([id], cancellationToken);
+        if (dependency != null)
+        {
+            _context.StoryDependencies.Remove(dependency);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<List<Story>> GetDependenciesAsync(int storyId, CancellationToken cancellationToken = default)
+    {
+        return await _context.StoryDependencies
+            .Where(d => d.StoryId == storyId)
+            .Select(d => d.DependsOnStory)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<Story>> GetDependentsAsync(int storyId, CancellationToken cancellationToken = default)
+    {
+        return await _context.StoryDependencies
+            .Where(d => d.DependsOnStoryId == storyId)
+            .Select(d => d.Story)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> AreDependenciesSatisfiedAsync(int storyId, CancellationToken cancellationToken = default)
+    {
+        // 获取所有依赖的故事
+        var dependencies = await _context.StoryDependencies
+            .Where(d => d.StoryId == storyId)
+            .Select(d => d.DependsOnStory)
+            .ToListAsync(cancellationToken);
+
+        // 如果没有依赖，直接返回 true
+        if (!dependencies.Any())
+            return true;
+
+        // 检查所有依赖的故事是否都已完成
+        return dependencies.All(s => s.Phase == StoryPhase.Completed);
+    }
+
+    public async Task<List<Story>> GetReadyStoriesAsync(CancellationToken cancellationToken = default)
+    {
+        // 获取所有待处理的 story（排除暂停的）
+        var pendingStories = await _context.Stories
+            .Where(s => !s.IsPaused
+                && (s.Status == "Pending" || s.Status == "InProgress"
+                || s.Phase == StoryPhase.RequirementsPlanning
+                || s.Phase == StoryPhase.AcceptancePlanning
+                || s.Phase == StoryPhase.Coding
+                || s.Phase == StoryPhase.Testing
+                || s.Phase == StoryPhase.Acceptance))
+            .ToListAsync(cancellationToken);
+
+        // 过滤出依赖已满足的故事
+        var readyStories = new List<Story>();
+        foreach (var story in pendingStories)
+        {
+            if (await AreDependenciesSatisfiedAsync(story.Id, cancellationToken))
+            {
+                readyStories.Add(story);
+            }
+        }
+
+        return readyStories;
+    }
+}
+
+/// <summary>
+/// Claude 环境变量配置仓储实现
+/// </summary>
+public class ClaudeEnvConfigRepository : IClaudeEnvConfigRepository
+{
+    private readonly MortyDbContext _context;
+
+    public ClaudeEnvConfigRepository(MortyDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<ClaudeEnvConfig> AddAsync(ClaudeEnvConfig config, CancellationToken cancellationToken = default)
+    {
+        _context.ClaudeEnvConfigs.Add(config);
+        await _context.SaveChangesAsync(cancellationToken);
+        return config;
+    }
+
+    public async Task UpdateAsync(ClaudeEnvConfig config, CancellationToken cancellationToken = default)
+    {
+        _context.ClaudeEnvConfigs.Update(config);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var config = await _context.ClaudeEnvConfigs.FindAsync([id], cancellationToken);
+        if (config != null)
+        {
+            _context.ClaudeEnvConfigs.Remove(config);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<List<ClaudeEnvConfig>> GetByProjectIdAsync(int projectId, CancellationToken cancellationToken = default)
+    {
+        return await _context.ClaudeEnvConfigs
+            .Where(c => c.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<ClaudeEnvConfig?> GetByKeyAsync(int projectId, string key, CancellationToken cancellationToken = default)
+    {
+        return await _context.ClaudeEnvConfigs
+            .FirstOrDefaultAsync(c => c.ProjectId == projectId && c.Key == key, cancellationToken);
     }
 }

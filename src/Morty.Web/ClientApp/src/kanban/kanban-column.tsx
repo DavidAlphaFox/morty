@@ -1,10 +1,14 @@
+/**
+ * Kanban 列组件
+ * 显示特定状态的所有故事卡片
+ */
+
 import { createSignal, For, Show } from 'solid-js';
 import { createDroppable, SortableProvider } from '@thisbeyond/solid-dnd';
 import { useKanbanContext } from './kanban-context';
 import { TaskCard } from './task-card';
-import { Input } from '@ui/input';
-import { Button } from '@ui/button';
-import type { KanbanColumn as KanbanColumnType, StoryStatus } from '../types';
+import { CreateStoryModal, type CreateStoryData } from './create-story-modal';
+import type { KanbanColumn as KanbanColumnType } from '../types';
 
 interface KanbanColumnProps {
   column: KanbanColumnType;
@@ -13,27 +17,20 @@ interface KanbanColumnProps {
 export function KanbanColumn(props: KanbanColumnProps) {
   const kanban = useKanbanContext();
   const droppable = createDroppable(props.column.id);
-  const [showAddForm, setShowAddForm] = createSignal(false);
-  const [newTitle, setNewTitle] = createSignal('');
+  const [showCreateModal, setShowCreateModal] = createSignal(false);
 
   const storyIds = () => props.column.stories.map((s) => s.id);
 
-  const handleAdd = async () => {
-    const title = newTitle().trim();
-    if (!title) return;
-    await kanban.addStory(props.column.id as StoryStatus, title);
-    setNewTitle('');
-    setShowAddForm(false);
-  };
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAdd();
-    } else if (e.key === 'Escape') {
-      setShowAddForm(false);
-      setNewTitle('');
-    }
+  const handleCreateStory = async (data: CreateStoryData) => {
+    await kanban.addStory(
+      props.column.id,
+      data.title,
+      data.priority,
+      data.requirements,
+      data.userAcceptanceCriteria,
+      data.dependencies
+    );
+    setShowCreateModal(false);
   };
 
   return (
@@ -49,7 +46,7 @@ export function KanbanColumn(props: KanbanColumnProps) {
           <button
             class="happy-kanban-column__add-btn"
             style={{ background: props.column.color }}
-            onClick={() => setShowAddForm(true)}
+            onClick={() => setShowCreateModal(true)}
             title="Add story"
           >
             +
@@ -63,34 +60,15 @@ export function KanbanColumn(props: KanbanColumnProps) {
             {(story) => <TaskCard story={story} />}
           </For>
         </SortableProvider>
-
-        <Show when={showAddForm()}>
-          <div class="happy-kanban-column__add-form">
-            <Input
-              placeholder="Story title..."
-              value={newTitle()}
-              onInput={(e) => setNewTitle(e.currentTarget.value)}
-              onKeyDown={handleKeyDown}
-              autofocus
-            />
-            <div class="happy-kanban-column__add-actions">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowAddForm(false);
-                  setNewTitle('');
-                }}
-              >
-                Cancel
-              </Button>
-              <Button variant="primary" size="sm" onClick={handleAdd}>
-                Add
-              </Button>
-            </div>
-          </div>
-        </Show>
       </div>
+
+      <Show when={showCreateModal()}>
+        <CreateStoryModal
+          columnId={props.column.id}
+          onSubmit={handleCreateStory}
+          onCancel={() => setShowCreateModal(false)}
+        />
+      </Show>
     </div>
   );
 }

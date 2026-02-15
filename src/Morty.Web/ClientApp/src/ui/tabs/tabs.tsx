@@ -7,6 +7,7 @@ export interface TabsRootProps {
   value?: string;
   onChange?: (value: string) => void;
   activationMode?: 'automatic' | 'manual';
+  class?: string;
 }
 
 export interface TabsContextValue {
@@ -22,7 +23,7 @@ const [TabsContext, useTabsContext] = createSafeContext<TabsContextValue>(
 export { useTabsContext };
 
 export const TabsRoot: ParentComponent<TabsRootProps> = (props) => {
-  const [local] = splitProps(props, ['defaultValue', 'value', 'onChange', 'activationMode', 'children']);
+  const [local] = splitProps(props, ['defaultValue', 'value', 'onChange', 'activationMode', 'children', 'class']);
 
   const [value, setValue] = createSignal(local.value ?? local.defaultValue);
 
@@ -37,7 +38,7 @@ export const TabsRoot: ParentComponent<TabsRootProps> = (props) => {
     activationMode: () => local.activationMode ?? 'automatic',
   };
 
-  return <TabsContext.Provider value={context}>{local.children}</TabsContext.Provider>;
+  return <TabsContext.Provider value={context}><div class={local.class}>{local.children}</div></TabsContext.Provider>;
 };
 
 export const TabsList: ParentComponent<JSX.HTMLAttributes<HTMLDivElement>> = (props) => {
