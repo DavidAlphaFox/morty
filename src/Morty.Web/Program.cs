@@ -23,7 +23,7 @@ Log.Logger = new LoggerConfiguration()
 if (args.Length > 0 && (args[0] == "--cli" || args[0] != "--urls" && !args[0].StartsWith("--")))
 {
     // 如果第一个参数不是 URL 参数，则作为 CLI 命令处理
-    if (args[0].ToLower() is "server" or "project" or "story" or "provider" or "help" or "--help" or "-h")
+    if (args[0].ToLower() is "server" or "project" or "story" or "help" or "--help" or "-h")
     {
         await CliHandler.HandleAsync(args);
         return;
@@ -45,16 +45,16 @@ builder.Services.AddScoped<IIterationRepository, IterationRepository>();
 builder.Services.AddScoped<IPlanRepository, PlanRepository>();
 builder.Services.AddScoped<IVerificationRepository, VerificationRepository>();
 builder.Services.AddScoped<IStoryEventRepository, StoryEventRepository>();
-builder.Services.AddScoped<IProviderRepository, ProviderRepository>();
 builder.Services.AddScoped<IExecutionOutputRepository, ExecutionOutputRepository>();
+builder.Services.AddScoped<IPhaseHistoryRepository, PhaseHistoryRepository>();
 
 // 注册核心服务
 builder.Services.AddSingleton<IResponseAnalyzer, ResponseAnalyzer>();
 builder.Services.AddSingleton<ICircuitBreaker, CircuitBreaker>();
 builder.Services.AddSingleton<IRateLimiter, RateLimiter>();
 
-// 注册供应商工厂
-builder.Services.AddSingleton<IClaudeProviderFactory, ClaudeProviderFactory>();
+// 注册 Claude CLI 提供者
+builder.Services.AddSingleton<IClaudeProvider, ClaudeCliProvider>();
 
 // 注册 SignalR
 builder.Services.AddSignalR();
@@ -106,20 +106,6 @@ app.MapFallbackToFile("index.html");
 var hubContext = app.Services.GetRequiredService<IHubContext<MortyHub>>();
 MortyHub.Broadcaster.SetHubContext(hubContext);
 
-// 从环境变量初始化供应商
-var providerFactory = app.Services.GetRequiredService<IClaudeProviderFactory>();
-var configLoader = new ProviderConfigLoader();
-var configs = configLoader.LoadFromEnvironment();
-foreach (var config in configs)
-{
-    var provider = configLoader.CreateProvider(config);
-    providerFactory.RegisterProvider(provider);
-    if (config.IsDefault)
-    {
-        providerFactory.SetDefaultProvider(config.Name);
-    }
-}
-
 // 确保数据库已迁移
 using (var scope = app.Services.CreateScope())
 {
@@ -150,9 +136,6 @@ public static class CliHandler
                     break;
                 case "story":
                     HandleStory(args);
-                    break;
-                case "provider":
-                    HandleProvider(args);
                     break;
                 case "--help":
                 case "-h":
@@ -332,46 +315,6 @@ public static class CliHandler
         Console.WriteLine($"  curl -X POST http://localhost:5000/api/projects/{projectId}/stories -H 'Content-Type: application/json' -d '{{\"title\":\"{title}\",\"priority\":\"{priority}\"}}'");
     }
 
-    private static void HandleProvider(string[] args)
-    {
-        if (args.Length < 2)
-        {
-            Console.WriteLine("供应商命令:");
-            Console.WriteLine("  provider list                   - 列出所有供应商");
-            Console.WriteLine("  provider add --name <名称> --type <类型> - 添加供应商");
-            return;
-        }
-
-        var subCommand = args[1].ToLower();
-
-        switch (subCommand)
-        {
-            case "list":
-                ListProviders();
-                break;
-            case "add":
-                AddProvider(args);
-                break;
-        }
-    }
-
-    private static void ListProviders()
-    {
-        Console.WriteLine("获取供应商列表...");
-        Console.WriteLine("提示: 使用 REST API");
-        Console.WriteLine("  curl http://localhost:5000/api/providers");
-    }
-
-    private static void AddProvider(string[] args)
-    {
-        Console.WriteLine("添加供应商...");
-        Console.WriteLine("提示: 使用 REST API");
-        Console.WriteLine("  curl -X POST http://localhost:5000/api/providers -H 'Content-Type: application/json' -d '{...}'");
-        Console.WriteLine();
-        Console.WriteLine("或通过环境变量配置 (推荐):");
-        Console.WriteLine("  export MORTY_PROVIDERS='[...]'");
-    }
-
     private static void PrintHelp()
     {
         Console.WriteLine("Morty - AI 驱动的开发管理系统");
@@ -383,7 +326,6 @@ public static class CliHandler
         Console.WriteLine("  server                      - 启动 Web 服务器");
         Console.WriteLine("  project                     - 项目管理");
         Console.WriteLine("  story                       - 用户故事管理");
-        Console.WriteLine("  provider                    - Claude 供应商管理");
         Console.WriteLine();
         Console.WriteLine("示例:");
         Console.WriteLine("  dotnet run --project Morty.Web -- server --urls=http://localhost:5000");

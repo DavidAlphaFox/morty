@@ -2,64 +2,122 @@ using Morty.Core.Entities;
 
 namespace Morty.Core.Repositories;
 
+/// <summary>
+/// 项目仓储接口
+/// 定义项目数据的持久化操作
+/// </summary>
 public interface IProjectRepository
 {
+    /// <summary>根据 ID 获取项目</summary>
     Task<Project?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+    /// <summary>获取所有项目</summary>
     Task<List<Project>> GetAllAsync(CancellationToken cancellationToken = default);
+    /// <summary>添加新项目</summary>
     Task<Project> AddAsync(Project project, CancellationToken cancellationToken = default);
+    /// <summary>更新项目</summary>
     Task UpdateAsync(Project project, CancellationToken cancellationToken = default);
+    /// <summary>删除项目</summary>
     Task DeleteAsync(int id, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// 故事仓储接口
+/// 定义用户故事数据的持久化操作
+/// </summary>
 public interface IStoryRepository
 {
+    /// <summary>根据 ID 获取故事</summary>
     Task<Story?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+    /// <summary>获取指定项目的所有故事</summary>
     Task<List<Story>> GetByProjectIdAsync(int projectId, CancellationToken cancellationToken = default);
+    /// <summary>获取下一个待处理的故事（按优先级排序）</summary>
     Task<Story?> GetNextPendingAsync(CancellationToken cancellationToken = default);
+    /// <summary>添加新故事</summary>
     Task<Story> AddAsync(Story story, CancellationToken cancellationToken = default);
+    /// <summary>更新故事</summary>
     Task UpdateAsync(Story story, CancellationToken cancellationToken = default);
+    /// <summary>获取故事的迭代次数</summary>
     Task<int> GetIterationCountAsync(int storyId, CancellationToken cancellationToken = default);
+    /// <summary>获取故事的所有迭代</summary>
     Task<List<Iteration>> GetIterationsByStoryIdAsync(int storyId, CancellationToken cancellationToken = default);
+    /// <summary>获取故事的最新计划</summary>
     Task<Plan?> GetPlanByStoryIdAsync(int storyId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// 迭代仓储接口
+/// 定义迭代数据的持久化操作
+/// </summary>
 public interface IIterationRepository
 {
+    /// <summary>添加新迭代</summary>
     Task<Iteration> AddAsync(Iteration iteration, CancellationToken cancellationToken = default);
+    /// <summary>获取故事的所有迭代</summary>
     Task<List<Iteration>> GetByStoryIdAsync(int storyId, CancellationToken cancellationToken = default);
+    /// <summary>更新迭代</summary>
     Task UpdateAsync(Iteration iteration, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// 计划仓储接口
+/// 定义计划数据的持久化操作
+/// </summary>
 public interface IPlanRepository
 {
+    /// <summary>获取故事的最新计划</summary>
     Task<Plan?> GetLatestByStoryIdAsync(int storyId, CancellationToken cancellationToken = default);
+    /// <summary>添加新计划</summary>
     Task<Plan> AddAsync(Plan plan, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// 验证仓储接口
+/// 定义验证数据的持久化操作
+/// </summary>
 public interface IVerificationRepository
 {
+    /// <summary>添加新验证记录</summary>
     Task<Verification> AddAsync(Verification verification, CancellationToken cancellationToken = default);
+    /// <summary>获取迭代的所有验证记录</summary>
     Task<List<Verification>> GetByIterationIdAsync(int iterationId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// 故事事件仓储接口
+/// 定义故事事件数据的持久化操作
+/// </summary>
 public interface IStoryEventRepository
 {
+    /// <summary>添加新故事事件</summary>
     Task<StoryEvent> AddAsync(StoryEvent storyEvent, CancellationToken cancellationToken = default);
+    /// <summary>获取故事的所有事件（按时间倒序）</summary>
     Task<List<StoryEvent>> GetByStoryIdAsync(int storyId, CancellationToken cancellationToken = default);
 }
 
-public interface IProviderRepository
-{
-    Task<Provider?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
-    Task<List<Provider>> GetAllAsync(CancellationToken cancellationToken = default);
-    Task<Provider?> GetDefaultAsync(CancellationToken cancellationToken = default);
-    Task<Provider> AddAsync(Provider provider, CancellationToken cancellationToken = default);
-    Task UpdateAsync(Provider provider, CancellationToken cancellationToken = default);
-    Task DeleteAsync(int id, CancellationToken cancellationToken = default);
-}
-
+/// <summary>
+/// 执行输出仓储接口
+/// 定义执行输出数据的持久化操作
+/// </summary>
 public interface IExecutionOutputRepository
 {
+    /// <summary>添加新执行输出</summary>
     Task<ExecutionOutput> AddAsync(ExecutionOutput output, CancellationToken cancellationToken = default);
+    /// <summary>获取迭代的所有执行输出（按时间倒序）</summary>
     Task<List<ExecutionOutput>> GetByIterationIdAsync(int iterationId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// 阶段历史仓储接口
+/// 定义阶段历史数据的持久化操作
+/// </summary>
+public interface IPhaseHistoryRepository
+{
+    /// <summary>添加新阶段历史</summary>
+    Task<PhaseHistory> AddAsync(PhaseHistory phaseHistory, CancellationToken cancellationToken = default);
+    /// <summary>获取故事的最新阶段历史</summary>
+    Task<PhaseHistory?> GetLatestByStoryIdAsync(int storyId, CancellationToken cancellationToken = default);
+    /// <summary>获取故事的所有阶段历史</summary>
+    Task<List<PhaseHistory>> GetByStoryIdAsync(int storyId, CancellationToken cancellationToken = default);
+    /// <summary>更新阶段历史</summary>
+    Task UpdateAsync(PhaseHistory phaseHistory, CancellationToken cancellationToken = default);
 }

@@ -4,6 +4,11 @@ using Morty.Web.DTOs;
 
 namespace Morty.Web.Controllers;
 
+/// <summary>
+/// 项目控制器
+/// 处理项目相关的 HTTP 请求
+/// 提供项目的 CRUD 操作和关联故事查询
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class ProjectsController : ControllerBase
@@ -17,6 +22,10 @@ public class ProjectsController : ControllerBase
         _storyRepository = storyRepository;
     }
 
+    /// <summary>
+    /// 获取所有项目列表
+    /// </summary>
+    /// <returns>所有项目的列表</returns>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ProjectDto>>> GetProjects()
     {
@@ -31,6 +40,11 @@ public class ProjectsController : ControllerBase
         }));
     }
 
+    /// <summary>
+    /// 获取指定项目详情
+    /// </summary>
+    /// <param name="id">项目 ID</param>
+    /// <returns>项目详情，如果不存在则返回 404</returns>
     [HttpGet("{id}")]
     public async Task<ActionResult<ProjectDto>> GetProject(int id)
     {
@@ -48,6 +62,11 @@ public class ProjectsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// 创建新项目
+    /// </summary>
+    /// <param name="dto">项目创建数据</param>
+    /// <returns>创建成功的项目，包含 201 Created 状态</returns>
     [HttpPost]
     public async Task<ActionResult<ProjectDto>> CreateProject([FromBody] CreateProjectDto dto)
     {
@@ -71,6 +90,12 @@ public class ProjectsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// 更新项目信息
+    /// </summary>
+    /// <param name="id">项目 ID</param>
+    /// <param name="dto">更新数据</param>
+    /// <returns>更新后的项目，如果不存在则返回 404</returns>
     [HttpPut("{id}")]
     public async Task<ActionResult<ProjectDto>> UpdateProject(int id, [FromBody] UpdateProjectDto dto)
     {
@@ -94,6 +119,11 @@ public class ProjectsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// 删除项目
+    /// </summary>
+    /// <param name="id">项目 ID</param>
+    /// <returns>成功返回 204 No Content，不存在返回 404</returns>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteProject(int id)
     {
@@ -105,6 +135,11 @@ public class ProjectsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// 获取项目的所有故事
+    /// </summary>
+    /// <param name="id">项目 ID</param>
+    /// <returns>该项目下的所有故事列表</returns>
     [HttpGet("{id}/stories")]
     public async Task<ActionResult<IEnumerable<StoryDto>>> GetProjectStories(int id)
     {

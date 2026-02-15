@@ -28,10 +28,23 @@ public class Story
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
 
+    // 多阶段处理相关字段
+    /// <summary>当前阶段</summary>
+    public StoryPhase Phase { get; set; } = StoryPhase.Pending;
+    /// <summary>用户需求（原始 PRD）</summary>
+    public string Requirements { get; set; } = string.Empty;
+    /// <summary>详细实施计划</summary>
+    public string DetailedPlan { get; set; } = string.Empty;
+    /// <summary>细化后的验收标准</summary>
+    public string AcceptanceCriteria { get; set; } = string.Empty;
+    /// <summary>当前阶段内的迭代次数</summary>
+    public int CurrentIteration { get; set; } = 0;
+
     public Project Project { get; set; } = null!;
     public ICollection<Iteration> Iterations { get; set; } = new List<Iteration>();
     public ICollection<Plan> Plans { get; set; } = new List<Plan>();
     public ICollection<StoryEvent> Events { get; set; } = new List<StoryEvent>();
+    public ICollection<PhaseHistory> PhaseHistories { get; set; } = new List<PhaseHistory>();
 }
 
 /// <summary>
@@ -48,11 +61,7 @@ public class Iteration
     public decimal? CostUsd { get; set; }
     public string Output { get; set; } = string.Empty;
 
-    /// <summary>关联的供应商</summary>
-    public int? ProviderId { get; set; }
-
     public Story Story { get; set; } = null!;
-    public Provider? Provider { get; set; }
     public ICollection<Verification> Verifications { get; set; } = new List<Verification>();
     public ICollection<ExecutionOutput> ExecutionOutputs { get; set; } = new List<ExecutionOutput>();
 }
@@ -69,13 +78,33 @@ public class Plan
 
     /// <summary>计划类型（规划/执行）</summary>
     public PlanType Type { get; set; } = PlanType.Planning;
-    /// <summary>关联的供应商</summary>
-    public int? ProviderId { get; set; }
     /// <summary>完整输出内容</summary>
     public string Output { get; set; } = string.Empty;
 
     public Story Story { get; set; } = null!;
-    public Provider? Provider { get; set; }
+}
+
+/// <summary>
+/// 故事阶段枚举
+/// </summary>
+public enum StoryPhase
+{
+    /// <summary>初始状态</summary>
+    Pending,
+    /// <summary>计划分析阶段 - 生成详细计划</summary>
+    RequirementsPlanning,
+    /// <summary>验收标准阶段 - 细化验收标准</summary>
+    AcceptancePlanning,
+    /// <summary>编码阶段</summary>
+    Coding,
+    /// <summary>测试阶段</summary>
+    Testing,
+    /// <summary>验收阶段</summary>
+    Acceptance,
+    /// <summary>完成</summary>
+    Completed,
+    /// <summary>失败</summary>
+    Failed
 }
 
 /// <summary>
@@ -83,9 +112,19 @@ public class Plan
 /// </summary>
 public enum PlanType
 {
-    /// <summary>规划阶段</summary>
+    /// <summary>需求计划阶段</summary>
+    RequirementsPlanning,
+    /// <summary>验收标准阶段</summary>
+    AcceptancePlanning,
+    /// <summary>编码阶段</summary>
+    Coding,
+    /// <summary>测试阶段</summary>
+    Testing,
+    /// <summary>验收阶段</summary>
+    Acceptance,
+    /// <summary>规划阶段（兼容旧数据）</summary>
     Planning,
-    /// <summary>执行阶段</summary>
+    /// <summary>执行阶段（兼容旧数据）</summary>
     Execution
 }
 
@@ -119,36 +158,12 @@ public class StoryEvent
 }
 
 /// <summary>
-/// 供应商实体
-/// </summary>
-public class Provider
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    /// <summary>供应商类型 (anthropic, openai, azure, cli)</summary>
-    public string Type { get; set; } = string.Empty;
-    public string ApiUrl { get; set; } = string.Empty;
-    public string Model { get; set; } = string.Empty;
-    /// <summary>API 令牌（生产环境应加密）</summary>
-    public string Token { get; set; } = string.Empty;
-    /// <summary>额外配置 (temperature 等)</summary>
-    public string ConfigJson { get; set; } = string.Empty;
-    public bool IsDefault { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    public ICollection<Iteration> Iterations { get; set; } = new List<Iteration>();
-    public ICollection<Plan> Plans { get; set; } = new List<Plan>();
-    public ICollection<ExecutionOutput> ExecutionOutputs { get; set; } = new List<ExecutionOutput>();
-}
-
-/// <summary>
 /// 执行输出实体
 /// </summary>
 public class ExecutionOutput
 {
     public int Id { get; set; }
     public int IterationId { get; set; }
-    public int? ProviderId { get; set; }
 
     /// <summary>发送的提示词</summary>
     public string Prompt { get; set; } = string.Empty;
@@ -162,5 +177,26 @@ public class ExecutionOutput
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public Iteration Iteration { get; set; } = null!;
-    public Provider? Provider { get; set; }
+}
+
+/// <summary>
+/// 阶段历史实体
+/// 记录每个阶段的开始和结束时间，以及该阶段的输出
+/// </summary>
+public class PhaseHistory
+{
+    public int Id { get; set; }
+    public int StoryId { get; set; }
+    /// <summary>阶段类型</summary>
+    public StoryPhase Phase { get; set; }
+    /// <summary>阶段开始时间</summary>
+    public DateTime StartedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>阶段完成时间</summary>
+    public DateTime? CompletedAt { get; set; }
+    /// <summary>该阶段的原始输出</summary>
+    public string Output { get; set; } = string.Empty;
+    /// <summary>是否成功</summary>
+    public bool Success { get; set; }
+
+    public Story Story { get; set; } = null!;
 }

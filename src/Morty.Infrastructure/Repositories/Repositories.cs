@@ -5,6 +5,10 @@ using Morty.Infrastructure.Data;
 
 namespace Morty.Infrastructure.Repositories;
 
+/// <summary>
+/// 项目仓储实现
+/// 负责项目数据的数据库操作
+/// </summary>
 public class ProjectRepository : IProjectRepository
 {
     private readonly MortyDbContext _context;
@@ -48,6 +52,11 @@ public class ProjectRepository : IProjectRepository
     }
 }
 
+/// <summary>
+/// 故事仓储实现
+/// 负责用户故事数据的数据库操作
+/// 支持按优先级和创建时间排序
+/// </summary>
 public class StoryRepository : IStoryRepository
 {
     private readonly MortyDbContext _context;
@@ -74,7 +83,12 @@ public class StoryRepository : IStoryRepository
     public async Task<Story?> GetNextPendingAsync(CancellationToken cancellationToken = default)
     {
         return await _context.Stories
-            .Where(s => s.Status == "Pending" || s.Status == "InProgress")
+            .Where(s => s.Status == "Pending" || s.Status == "InProgress"
+                || s.Phase == StoryPhase.RequirementsPlanning
+                || s.Phase == StoryPhase.AcceptancePlanning
+                || s.Phase == StoryPhase.Coding
+                || s.Phase == StoryPhase.Testing
+                || s.Phase == StoryPhase.Acceptance)
             .OrderBy(s => s.Priority == "High" ? 0 : s.Priority == "Medium" ? 1 : 2)
             .ThenBy(s => s.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
@@ -115,6 +129,10 @@ public class StoryRepository : IStoryRepository
     }
 }
 
+/// <summary>
+/// 迭代仓储实现
+/// 负责迭代数据的数据库操作
+/// </summary>
 public class IterationRepository : IIterationRepository
 {
     private readonly MortyDbContext _context;
@@ -146,6 +164,10 @@ public class IterationRepository : IIterationRepository
     }
 }
 
+/// <summary>
+/// 计划仓储实现
+/// 负责计划数据的数据库操作
+/// </summary>
 public class PlanRepository : IPlanRepository
 {
     private readonly MortyDbContext _context;
@@ -171,6 +193,10 @@ public class PlanRepository : IPlanRepository
     }
 }
 
+/// <summary>
+/// 验证仓储实现
+/// 负责验证数据的数据库操作
+/// </summary>
 public class VerificationRepository : IVerificationRepository
 {
     private readonly MortyDbContext _context;
@@ -195,6 +221,10 @@ public class VerificationRepository : IVerificationRepository
     }
 }
 
+/// <summary>
+/// 故事事件仓储实现
+/// 负责故事事件数据的数据库操作
+/// </summary>
 public class StoryEventRepository : IStoryEventRepository
 {
     private readonly MortyDbContext _context;
@@ -220,54 +250,10 @@ public class StoryEventRepository : IStoryEventRepository
     }
 }
 
-public class ProviderRepository : IProviderRepository
-{
-    private readonly MortyDbContext _context;
-
-    public ProviderRepository(MortyDbContext context)
-    {
-        _context = context;
-    }
-
-    public async Task<Provider?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
-    {
-        return await _context.Providers.FindAsync([id], cancellationToken);
-    }
-
-    public async Task<List<Provider>> GetAllAsync(CancellationToken cancellationToken = default)
-    {
-        return await _context.Providers.ToListAsync(cancellationToken);
-    }
-
-    public async Task<Provider?> GetDefaultAsync(CancellationToken cancellationToken = default)
-    {
-        return await _context.Providers.FirstOrDefaultAsync(p => p.IsDefault, cancellationToken);
-    }
-
-    public async Task<Provider> AddAsync(Provider provider, CancellationToken cancellationToken = default)
-    {
-        _context.Providers.Add(provider);
-        await _context.SaveChangesAsync(cancellationToken);
-        return provider;
-    }
-
-    public async Task UpdateAsync(Provider provider, CancellationToken cancellationToken = default)
-    {
-        _context.Providers.Update(provider);
-        await _context.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
-    {
-        var provider = await _context.Providers.FindAsync([id], cancellationToken);
-        if (provider != null)
-        {
-            _context.Providers.Remove(provider);
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-    }
-}
-
+/// <summary>
+/// 执行输出仓储实现
+/// 负责执行输出数据的数据库操作
+/// </summary>
 public class ExecutionOutputRepository : IExecutionOutputRepository
 {
     private readonly MortyDbContext _context;
@@ -290,5 +276,48 @@ public class ExecutionOutputRepository : IExecutionOutputRepository
             .Where(e => e.IterationId == iterationId)
             .OrderByDescending(e => e.CreatedAt)
             .ToListAsync(cancellationToken);
+    }
+}
+
+/// <summary>
+/// 阶段历史仓储实现
+/// 负责阶段历史数据的数据库操作
+/// </summary>
+public class PhaseHistoryRepository : IPhaseHistoryRepository
+{
+    private readonly MortyDbContext _context;
+
+    public PhaseHistoryRepository(MortyDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<PhaseHistory> AddAsync(PhaseHistory phaseHistory, CancellationToken cancellationToken = default)
+    {
+        _context.PhaseHistories.Add(phaseHistory);
+        await _context.SaveChangesAsync(cancellationToken);
+        return phaseHistory;
+    }
+
+    public async Task<PhaseHistory?> GetLatestByStoryIdAsync(int storyId, CancellationToken cancellationToken = default)
+    {
+        return await _context.PhaseHistories
+            .Where(p => p.StoryId == storyId)
+            .OrderByDescending(p => p.StartedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<List<PhaseHistory>> GetByStoryIdAsync(int storyId, CancellationToken cancellationToken = default)
+    {
+        return await _context.PhaseHistories
+            .Where(p => p.StoryId == storyId)
+            .OrderBy(p => p.StartedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task UpdateAsync(PhaseHistory phaseHistory, CancellationToken cancellationToken = default)
+    {
+        _context.PhaseHistories.Update(phaseHistory);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }
