@@ -62,7 +62,7 @@ function KanbanView(props: { project: Project; onBack: () => void }) {
         <button
           class="morty-header__back-btn"
           onClick={props.onBack}
-          title="Back to projects"
+          title="返回项目列表"
         >
           ←
         </button>

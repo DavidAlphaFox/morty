@@ -241,6 +241,29 @@ body {
   white-space: nowrap;
 }
 
+.morty-project-card__delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1rem;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.morty-project-card:hover .morty-project-card__delete {
+  opacity: 1;
+}
+
+.morty-project-card__delete:hover {
+  background: var(--color-danger-bg);
+}
+
 .morty-project-card__path {
   font-size: 0.8125rem;
   color: var(--color-muted-foreground);
@@ -357,6 +380,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.morty-create-project-form__field .happy-input {
+  padding-right: 12px;
 }
 
 .morty-create-project-form__label {

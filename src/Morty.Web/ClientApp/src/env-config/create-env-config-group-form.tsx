@@ -2,7 +2,7 @@
  * 创建/编辑环境配置组表单组件
  */
 
-import { createSignal, For, Show } from 'solid-js';
+import { createSignal, For, Show, Index } from 'solid-js';
 import type { EnvConfigGroup, CreateEnvVariableDto } from '../types';
 import { createEnvConfigGroup, updateEnvConfigGroup } from '../api/client';
 import { Input } from '@ui/input';
@@ -136,26 +136,28 @@ export function CreateEnvConfigGroupForm(props: CreateEnvConfigGroupFormProps) {
             </div>
 
             <div class="morty-create-env-config-group-form__variables">
-              <For each={variables()}>
-                {(variable, index) => (
+              <Index each={variables()}>
+                {(variable, idx) => (
                   <div class="morty-create-env-config-group-form__variable">
                     <div class="morty-create-env-config-group-form__variable-row">
-                      <Input
+                      <input
+                        class="happy-input"
                         placeholder="变量名 (KEY)"
-                        value={variable.key}
-                        onInput={(e) => updateVariable(index(), 'key', e.currentTarget.value)}
+                        value={variable().key}
+                        onInput={(e) => updateVariable(idx, 'key', e.currentTarget.value)}
                         disabled={submitting()}
                       />
-                      <Input
+                      <input
+                        class="happy-input"
                         placeholder="值 (VALUE)"
-                        value={variable.value}
-                        onInput={(e) => updateVariable(index(), 'value', e.currentTarget.value)}
+                        value={variable().value}
+                        onInput={(e) => updateVariable(idx, 'value', e.currentTarget.value)}
                         disabled={submitting()}
                       />
                       <button
                         type="button"
                         class="morty-create-env-config-group-form__remove-btn"
-                        onClick={() => removeVariable(index())}
+                        onClick={() => removeVariable(idx)}
                         disabled={submitting()}
                       >
                         ✕
@@ -165,22 +167,23 @@ export function CreateEnvConfigGroupForm(props: CreateEnvConfigGroupFormProps) {
                       <label class="morty-create-env-config-group-form__checkbox">
                         <input
                           type="checkbox"
-                          checked={variable.isRequired}
-                          onChange={(e) => updateVariable(index(), 'isRequired', e.currentTarget.checked)}
+                          checked={variable().isRequired}
+                          onChange={(e) => updateVariable(idx, 'isRequired', e.currentTarget.checked)}
                           disabled={submitting()}
                         />
                         必需
                       </label>
-                      <Input
+                      <input
+                        class="happy-input"
                         placeholder="默认值（可选）"
-                        value={variable.defaultValue || ''}
-                        onInput={(e) => updateVariable(index(), 'defaultValue', e.currentTarget.value)}
+                        value={variable().defaultValue || ''}
+                        onInput={(e) => updateVariable(idx, 'defaultValue', e.currentTarget.value)}
                         disabled={submitting()}
                       />
                     </div>
                   </div>
                 )}
-              </For>
+              </Index>
               <Show when={variables().length === 0}>
                 <div class="morty-create-env-config-group-form__empty">
                   暂无环境变量，点击上方"添加变量"按钮添加

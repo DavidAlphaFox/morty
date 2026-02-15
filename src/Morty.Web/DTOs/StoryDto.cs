@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Morty.Core.Entities;
 
 namespace Morty.Web.DTOs;
@@ -15,9 +16,11 @@ public class StoryDto
 
     // 调度控制字段
     public bool IsPaused { get; set; } = true;
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public StorySource Source { get; set; } = StorySource.UserAdded;
 
     // 多阶段处理相关字段
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public StoryPhase Phase { get; set; } = StoryPhase.Pending;
     /// <summary>用户需求（用户输入）</summary>
     public string Requirements { get; set; } = string.Empty;
@@ -41,6 +44,7 @@ public class CreateStoryDto
     public string StoryId { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Priority { get; set; } = "Medium";
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public StorySource Source { get; set; } = StorySource.UserAdded;
 
     // 创建时可以直接填写需求和验收标准
@@ -69,6 +73,7 @@ public class UpdateUserAcceptanceCriteriaDto
 
 public class StartPhaseDto
 {
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public StoryPhase Phase { get; set; }
 }
 
@@ -86,6 +91,7 @@ public class PlanDto
 {
     public int Id { get; set; }
     public int StoryId { get; set; }
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public PlanType Type { get; set; }
     public int Version { get; set; }
     public string PlanContent { get; set; } = string.Empty;

@@ -342,6 +342,11 @@
   margin-bottom: 0.75rem;
 }
 
+.morty-create-env-config-group-form__variable-row .happy-input {
+  flex: 1;
+  min-width: 0;
+}
+
 .morty-create-env-config-group-form__remove-btn {
   flex-shrink: 0;
   width: 2.5rem;

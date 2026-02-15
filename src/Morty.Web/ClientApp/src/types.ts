@@ -107,12 +107,12 @@ export const PHASE_TO_COLUMN: Record<StoryPhase, KanbanColumnId> = {
  * Kanban列配置
  */
 export const KANBAN_COLUMN_CONFIG: Record<KanbanColumnId, { title: string; color: string }> = {
-  Pending:   { title: 'Backlog',   color: '#919eab' },
-  Planning:  { title: 'Planning',  color: '#8b5cf6' },
-  Coding:    { title: 'Coding',    color: '#3b82f6' },
-  Testing:   { title: 'Testing',   color: '#f59e0b' },
-  Completed: { title: 'Done',      color: '#22c55e' },
-  Failed:    { title: 'Failed',    color: '#ef4444' },
+  Pending:   { title: '待办',   color: '#919eab' },
+  Planning:  { title: '规划中',  color: '#8b5cf6' },
+  Coding:    { title: '开发中',    color: '#3b82f6' },
+  Testing:   { title: '测试中',   color: '#f59e0b' },
+  Completed: { title: '已完成',      color: '#22c55e' },
+  Failed:    { title: '失败',    color: '#ef4444' },
 };
 
 /**

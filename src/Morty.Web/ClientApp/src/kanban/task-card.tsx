@@ -8,6 +8,17 @@ const PRIORITY_COLORS = {
   Low: '#22c55e',
 };
 
+const PHASE_LABELS: Record<string, string> = {
+  Pending: '待处理',
+  RequirementsPlanning: '需求规划',
+  AcceptancePlanning: '验收规划',
+  Coding: '开发中',
+  Testing: '测试中',
+  Acceptance: '验收中',
+  Completed: '已完成',
+  Failed: '失败',
+};
+
 interface TaskCardProps {
   story: Story;
 }
@@ -15,7 +26,6 @@ interface TaskCardProps {
 export function TaskCard(props: TaskCardProps) {
   const kanban = useKanbanContext();
   const sortable = createSortable(props.story.id);
-  const [dndState] = useDragDropContext()!;
 
   return (
     <div
@@ -38,6 +48,11 @@ export function TaskCard(props: TaskCardProps) {
         <div class="happy-kanban-task__footer">
           <div class="happy-kanban-task__meta">
             <span class="happy-kanban-task__stat">{props.story.priority}</span>
+          </div>
+          <div class="happy-kanban-task__status">
+            <span class={`happy-kanban-task__phase ${props.story.isPaused ? 'paused' : 'running'}`}>
+              {PHASE_LABELS[props.story.phase] || props.story.phase}
+            </span>
           </div>
         </div>
       </div>

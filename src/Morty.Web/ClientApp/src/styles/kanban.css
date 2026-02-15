@@ -216,6 +216,29 @@
   color: var(--color-muted-foreground);
 }
 
+.happy-kanban-task__status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.happy-kanban-task__phase {
+  font-size: 0.6875rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.happy-kanban-task__phase.paused {
+  background: var(--color-muted);
+  color: var(--color-muted-foreground);
+}
+
+.happy-kanban-task__phase.running {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+}
+
 /* Detail Panel */
 .happy-sheet-content:has(.happy-kanban-detail) {
   --sheet-width: 480px;

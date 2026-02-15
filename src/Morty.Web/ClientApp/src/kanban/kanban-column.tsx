@@ -48,7 +48,7 @@ export function KanbanColumn(props: KanbanColumnProps) {
               class="happy-kanban-column__add-btn"
               style={{ background: props.column.color }}
               onClick={() => setShowCreateModal(true)}
-              title="Add story"
+              title="添加任务"
             >
               +
             </button>

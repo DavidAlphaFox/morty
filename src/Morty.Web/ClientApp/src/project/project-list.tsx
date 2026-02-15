@@ -5,11 +5,12 @@
 
 import { createSignal, createResource, Show, For } from 'solid-js';
 import type { Project } from '../types';
-import { fetchProjects, createProject } from '../api/client';
+import { fetchProjects, createProject, deleteProject } from '../api/client';
 import { CreateProjectForm } from './create-project-form';
 
 interface ProjectListProps {
   onSelectProject: (projectId: number) => void;
+  onDeleteSuccess?: () => void;
 }
 
 export function ProjectList(props: ProjectListProps) {
@@ -27,15 +28,26 @@ export function ProjectList(props: ProjectListProps) {
     }
   };
 
+  const handleDeleteProject = async (projectId: number) => {
+    try {
+      await deleteProject(projectId);
+      refetch();
+      props.onDeleteSuccess?.();
+    } catch (err) {
+      console.error('Failed to delete project:', err);
+      alert('Failed to delete project');
+    }
+  };
+
   return (
     <div class="morty-project-list">
       <div class="morty-project-list__header">
-        <h1 class="morty-project-list__title">Projects</h1>
+        <h1 class="morty-project-list__title">项目</h1>
         <button
           class="morty-project-list__create-btn"
           onClick={() => setShowCreateForm(true)}
         >
-          + New Project
+          + 新建项目
         </button>
       </div>
 
@@ -55,8 +67,8 @@ export function ProjectList(props: ProjectListProps) {
           fallback={
             <div class="morty-project-list__empty">
               <div class="morty-project-list__empty-icon">📁</div>
-              <div class="morty-project-list__empty-text">No projects yet</div>
-              <div class="morty-project-list__empty-hint">Create a new project to get started</div>
+              <div class="morty-project-list__empty-text">暂无项目</div>
+              <div class="morty-project-list__empty-hint">点击上方"新建项目"按钮创建</div>
             </div>
           }
         >
@@ -66,6 +78,7 @@ export function ProjectList(props: ProjectListProps) {
                 <ProjectCard
                   project={project}
                   onClick={() => props.onSelectProject(project.id)}
+                  onDelete={() => handleDeleteProject(project.id)}
                 />
               )}
             </For>
@@ -76,9 +89,16 @@ export function ProjectList(props: ProjectListProps) {
   );
 }
 
-function ProjectCard(props: { project: Project; onClick: () => void }) {
+function ProjectCard(props: { project: Project; onClick: () => void; onDelete: () => void }) {
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString();
+  };
+
+  const handleDelete = (e: Event) => {
+    e.stopPropagation();
+    if (confirm(`Are you sure you want to delete project "${props.project.name}"?`)) {
+      props.onDelete();
+    }
   };
 
   return (
@@ -86,11 +106,18 @@ function ProjectCard(props: { project: Project; onClick: () => void }) {
       <div class="morty-project-card__header">
         <div class="morty-project-card__icon">📁</div>
         <h3 class="morty-project-card__name">{props.project.name}</h3>
+        <button
+          class="morty-project-card__delete"
+          onClick={handleDelete}
+          title="Delete project"
+        >
+          🗑️
+        </button>
       </div>
       <div class="morty-project-card__path">{props.project.workingDirectory}</div>
       <div class="morty-project-card__footer">
-        <span class="morty-project-card__date">Created: {formatDate(props.project.createdAt)}</span>
-        <span class="morty-project-card__action">Open →</span>
+        <span class="morty-project-card__date">创建时间: {formatDate(props.project.createdAt)}</span>
+        <span class="morty-project-card__action">打开 →</span>
       </div>
     </div>
   );
