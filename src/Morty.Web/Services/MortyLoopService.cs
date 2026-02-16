@@ -31,6 +31,11 @@ public class MortyLoopService : BackgroundService
     /// <summary>Execution 队列信号量 - 保证同一时刻只有一个 Executing/Testing/Acceptance 在运行</summary>
     private readonly SemaphoreSlim _executionSemaphore = new(1, 1);
 
+    /// <summary>通知 Planning 循环立即检查新任务</summary>
+    private readonly SemaphoreSlim _planningNotify = new(0, 1);
+    /// <summary>通知 Execution 循环立即检查新任务</summary>
+    private readonly SemaphoreSlim _executionNotify = new(0, 1);
+
     private bool _isRunning;
 
     public MortyLoopService(
@@ -54,6 +59,16 @@ public class MortyLoopService : BackgroundService
     }
 
     public bool IsRunning => _isRunning;
+
+    /// <summary>
+    /// 通知循环立即检查新任务（由外部调用，如 Start/Pause 接口）
+    /// </summary>
+    public void NotifyNewWork()
+    {
+        // 尝试释放信号量（如果已经有信号则忽略）
+        try { _planningNotify.Release(); } catch (SemaphoreFullException) { }
+        try { _executionNotify.Release(); } catch (SemaphoreFullException) { }
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -201,7 +216,11 @@ public class MortyLoopService : BackgroundService
                     _planningSemaphore.Release();
                 }
 
-                await Task.Delay(_delayBetweenIterations, stoppingToken);
+                // 等待延迟或新任务通知（哪个先到就立即继续）
+                await Task.WhenAny(
+                    Task.Delay(_delayBetweenIterations, stoppingToken),
+                    _planningNotify.WaitAsync(stoppingToken)
+                );
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -247,7 +266,11 @@ public class MortyLoopService : BackgroundService
                     _executionSemaphore.Release();
                 }
 
-                await Task.Delay(_delayBetweenIterations, stoppingToken);
+                // 等待延迟或新任务通知（哪个先到就立即继续）
+                await Task.WhenAny(
+                    Task.Delay(_delayBetweenIterations, stoppingToken),
+                    _executionNotify.WaitAsync(stoppingToken)
+                );
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -282,20 +305,30 @@ public class MortyLoopService : BackgroundService
         var phaseHistoryRepo = scope.ServiceProvider.GetRequiredService<IPhaseHistoryRepository>();
         var storyDependencyRepo = scope.ServiceProvider.GetRequiredService<IStoryDependencyRepository>();
 
-        // 获取下一个待处理的故事（按队列类型筛选）
-        var story = await storyRepo.GetNextPendingByQueueTypeAsync(queueType, stoppingToken);
+        // 获取候选故事列表（按优先级排序），遍历找到第一个依赖已满足的
+        var candidates = await storyRepo.GetPendingByQueueTypeAsync(queueType, stoppingToken);
 
-        if (story == null)
+        if (candidates.Count == 0)
         {
             _logger.Debug("队列 {QueueType} 没有待处理的故事", queueType);
             return;
         }
 
-        // 检查依赖是否已满足
-        var dependenciesSatisfied = await storyDependencyRepo.AreDependenciesSatisfiedAsync(story.Id, stoppingToken);
-        if (!dependenciesSatisfied)
+        Story? story = null;
+        foreach (var candidate in candidates)
         {
-            _logger.Debug("故事 {StoryId} 的依赖尚未满足，跳过处理", story.StoryId);
+            var satisfied = await storyDependencyRepo.AreDependenciesSatisfiedAsync(candidate.Id, stoppingToken);
+            if (satisfied)
+            {
+                story = candidate;
+                break;
+            }
+            _logger.Debug("故事 {StoryId} 的依赖尚未满足，尝试下一个", candidate.StoryId);
+        }
+
+        if (story == null)
+        {
+            _logger.Debug("队列 {QueueType} 所有候选故事的依赖均未满足", queueType);
             return;
         }
 
@@ -826,26 +859,13 @@ public class MortyLoopService : BackgroundService
 
             _logger.Information("发现 {Count} 个遗漏任务", tasks.Count);
 
-            // 获取当前项目的最大 Story 编号
-            var existingStories = await storyRepo.GetByProjectIdAsync(parentStory.ProjectId, stoppingToken);
-            var maxStoryNum = 0;
-            foreach (var s in existingStories)
-            {
-                var numMatch = System.Text.RegularExpressions.Regex.Match(s.StoryId, @"-(\d+)$");
-                if (numMatch.Success && int.TryParse(numMatch.Groups[1].Value, out var num))
-                {
-                    maxStoryNum = Math.Max(maxStoryNum, num);
-                }
-            }
-
             foreach (var task in tasks)
             {
                 var title = task.GetProperty("title").GetString() ?? "未命名任务";
                 var requirements = task.TryGetProperty("requirements", out var req) ? req.GetString() ?? "" : "";
                 var priority = task.TryGetProperty("priority", out var pri) ? pri.GetString() ?? "Medium" : "Medium";
 
-                maxStoryNum++;
-                var newStoryId = $"S-{maxStoryNum:D4}";
+                var newStoryId = GenerateStoryId();
 
                 var newStory = new Story
                 {
@@ -912,11 +932,12 @@ public class MortyLoopService : BackgroundService
         IPlanRepository planRepo,
         CancellationToken stoppingToken)
     {
+        // 使用 ExecutionLog 类型存储执行阶段输出，避免覆盖原始 DetailedPlan
         var plan = new Plan
         {
             StoryId = story.Id,
             PlanContent = $"{phaseName} 阶段执行完成",
-            Type = PlanType.DetailedPlan, // 使用 DetailedPlan 存储执行记录
+            Type = PlanType.ExecutionLog,
             Output = responseContent,
             CreatedAt = DateTime.UtcNow
         };
@@ -982,5 +1003,27 @@ public class MortyLoopService : BackgroundService
         await storyRepo.UpdateAsync(story, stoppingToken);
         _logger.Information("故事 {StoryId} 阶段转换: {From} -> {To}",
             story.StoryId, story.Phase, nextPhase);
+    }
+
+    /// <summary>
+    /// 生成故事 ID，格式为 S-{timestamp_base36}，与前端保持一致
+    /// </summary>
+    private static string GenerateStoryId()
+    {
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        return $"S-{ConvertToBase36(timestamp).ToUpperInvariant()}";
+    }
+
+    private static string ConvertToBase36(long value)
+    {
+        const string chars = "0123456789abcdefghijklmnopqrstuvwxyz";
+        if (value == 0) return "0";
+        var result = new System.Text.StringBuilder();
+        while (value > 0)
+        {
+            result.Insert(0, chars[(int)(value % 36)]);
+            value /= 36;
+        }
+        return result.ToString();
     }
 }

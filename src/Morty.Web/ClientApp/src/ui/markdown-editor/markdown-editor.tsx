@@ -227,19 +227,25 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
 export function MarkdownViewer(props: { content: string; class?: string }) {
   const [html, setHtml] = createSignal('');
 
-  createEffect(async () => {
+  // 预加载 marked 以避免 async effect 问题
+  let markedInstance: typeof import('marked') | null = null;
+  import('marked').then(m => { markedInstance = m; });
+
+  createEffect(() => {
     const content = props.content;
     if (!content) {
       setHtml('');
       return;
     }
-    // 检测内容是否已经是 HTML（包含常见 HTML 标签）
-    if (/<[a-z][\s\S]*>/i.test(content)) {
-      setHtml(content);
+    // 始终使用 marked 解析，它能正确处理纯 markdown 和混合 HTML 内容
+    if (markedInstance) {
+      setHtml(markedInstance.marked.parse(content, { async: false }) as string);
     } else {
-      // 原始 Markdown，使用 marked 解析
-      const { marked } = await import('marked');
-      setHtml(marked.parse(content, { async: false }) as string);
+      // marked 尚未加载，异步加载后设置
+      import('marked').then(m => {
+        markedInstance = m;
+        setHtml(m.marked.parse(content, { async: false }) as string);
+      });
     }
   });
 

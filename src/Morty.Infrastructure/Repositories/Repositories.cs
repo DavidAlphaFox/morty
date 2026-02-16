@@ -95,7 +95,7 @@ public class StoryRepository : IStoryRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<Story?> GetNextPendingByQueueTypeAsync(StoryQueueType queueType, CancellationToken cancellationToken = default)
+    public async Task<List<Story>> GetPendingByQueueTypeAsync(StoryQueueType queueType, CancellationToken cancellationToken = default)
     {
         // 定义各队列类型对应的阶段（包含 Pending 以便从待处理状态开始）
         var planningPhases = new[]
@@ -123,7 +123,7 @@ public class StoryRepository : IStoryRepository
                 && activePhases.Contains(s.Phase))
             .OrderBy(s => s.Priority == "High" ? 0 : s.Priority == "Medium" ? 1 : 2)
             .ThenBy(s => s.CreatedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<Story> AddAsync(Story story, CancellationToken cancellationToken = default)

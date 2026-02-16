@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Morty.Core.Entities;
 using Morty.Core.Repositories;
 using Morty.Web.DTOs;
+using Morty.Web.Services;
 
 namespace Morty.Web.Controllers;
 
@@ -17,15 +18,18 @@ public class StoriesController : ControllerBase
     private readonly IStoryRepository _storyRepository;
     private readonly IProjectRepository _projectRepository;
     private readonly IPlanRepository _planRepository;
+    private readonly MortyLoopService _loopService;
 
     public StoriesController(
         IStoryRepository storyRepository,
         IProjectRepository projectRepository,
-        IPlanRepository planRepository)
+        IPlanRepository planRepository,
+        MortyLoopService loopService)
     {
         _storyRepository = storyRepository;
         _projectRepository = projectRepository;
         _planRepository = planRepository;
+        _loopService = loopService;
     }
 
     /// <summary>
@@ -267,6 +271,9 @@ public class StoriesController : ControllerBase
 
         story.RunningStatus = RunningStatus.Pending;
         await _storyRepository.UpdateAsync(story);
+
+        // 通知循环立即检查新任务
+        _loopService.NotifyNewWork();
 
         return Ok(MapToDto(story));
     }

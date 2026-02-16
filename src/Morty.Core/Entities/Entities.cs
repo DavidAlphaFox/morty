@@ -168,6 +168,8 @@ public enum PlanType
     DetailedPlan,
     /// <summary>细化验收标准（AcceptancePlanning 阶段生成）</summary>
     AcceptanceCriteria,
+    /// <summary>执行阶段日志（Executing/Testing 阶段生成，不覆盖 DetailedPlan）</summary>
+    ExecutionLog,
 }
 
 /// <summary>

@@ -62,8 +62,9 @@ builder.Services.AddSingleton<IClaudeProvider, ClaudeCliProvider>();
 // 注册 SignalR
 builder.Services.AddSignalR();
 
-// 注册后台服务
-builder.Services.AddHostedService<MortyLoopService>();
+// 注册后台服务（同时注册为单例，以便控制器注入通知）
+builder.Services.AddSingleton<MortyLoopService>();
+builder.Services.AddHostedService<MortyLoopService>(sp => sp.GetRequiredService<MortyLoopService>());
 
 builder.Services.AddControllers();
 

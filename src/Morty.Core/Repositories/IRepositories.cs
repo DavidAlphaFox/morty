@@ -32,8 +32,8 @@ public interface IStoryRepository
     Task<List<Story>> GetByProjectIdAsync(int projectId, CancellationToken cancellationToken = default);
     /// <summary>获取下一个待处理的故事（按优先级排序）</summary>
     Task<Story?> GetNextPendingAsync(CancellationToken cancellationToken = default);
-    /// <summary>获取指定队列的下一个待处理故事</summary>
-    Task<Story?> GetNextPendingByQueueTypeAsync(StoryQueueType queueType, CancellationToken cancellationToken = default);
+    /// <summary>获取指定队列的待处理故事列表（按优先级排序）</summary>
+    Task<List<Story>> GetPendingByQueueTypeAsync(StoryQueueType queueType, CancellationToken cancellationToken = default);
     /// <summary>添加新故事</summary>
     Task<Story> AddAsync(Story story, CancellationToken cancellationToken = default);
     /// <summary>更新故事</summary>

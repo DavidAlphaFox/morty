@@ -45,14 +45,10 @@ function ContentModal(props: {
   isMarkdown?: boolean;
   onClose: () => void;
 }) {
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') props.onClose();
-  };
-
   return (
     <Show when={props.open}>
       <Portal>
-        <div class="content-modal" onKeyDown={handleKeyDown}>
+        <div class="content-modal">
           <div class="content-modal__backdrop" />
           <div class="content-modal__dialog">
             <div class="content-modal__header">
@@ -65,6 +61,45 @@ function ContentModal(props: {
               }>
                 <MarkdownViewer content={props.content} />
               </Show>
+            </div>
+          </div>
+        </div>
+      </Portal>
+    </Show>
+  );
+}
+
+/** 全屏编辑模态框 */
+function EditorModal(props: {
+  open: boolean;
+  title: string;
+  content: string;
+  onChange: (val: string) => void;
+  onSave: () => void;
+  onClose: () => void;
+  placeholder?: string;
+}) {
+  return (
+    <Show when={props.open}>
+      <Portal>
+        <div class="content-modal">
+          <div class="content-modal__backdrop" />
+          <div class="content-modal__dialog content-modal__dialog--editor">
+            <div class="content-modal__header">
+              <h3 class="content-modal__title">{props.title}</h3>
+              <button class="content-modal__close" onClick={() => props.onClose()}>✕</button>
+            </div>
+            <div class="content-modal__body content-modal__body--editor">
+              <MarkdownEditor
+                content={props.content}
+                onChange={props.onChange}
+                placeholder={props.placeholder || '输入内容（支持 Markdown 格式）...'}
+                minHeight="400px"
+              />
+            </div>
+            <div class="content-modal__footer">
+              <Button variant="ghost" onClick={props.onClose}>取消</Button>
+              <Button variant="primary" onClick={props.onSave}>保存</Button>
             </div>
           </div>
         </div>
@@ -295,46 +330,24 @@ function TaskDetailContent(props: { story: Story }) {
             <div class="happy-kanban-detail__section">
               <div class="happy-kanban-detail__section-header">
                 <h4 class="happy-kanban-detail__section-title">📋 用户需求</h4>
-                <Show when={editingField() !== 'requirements'}>
-                  <button
-                    class="happy-kanban-detail__edit-btn"
-                    onClick={() => startEditing('requirements')}
-                  >
-                    编辑
-                  </button>
-                </Show>
-              </div>
-              <Show when={editingField() === 'requirements'}>
-                <div class="happy-kanban-detail__editor-area">
-                  <MarkdownEditor
-                    content={requirementsDraft()}
-                    onChange={setRequirementsDraft}
-                    placeholder="输入用户需求（支持 Markdown 格式）..."
-                    minHeight="200px"
-                  />
-                  <div class="happy-kanban-detail__edit-actions">
-                    <Button variant="ghost" size="sm" onClick={cancelEdit}>
-                      取消
-                    </Button>
-                    <Button variant="primary" size="sm" onClick={saveRequirements}>
-                      保存
-                    </Button>
-                  </div>
-                </div>
-              </Show>
-              <Show when={editingField() !== 'requirements'}>
-                <Show
-                  when={props.story.requirements}
-                  fallback={
-                    <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--empty">
-                      暂无需求描述，点击编辑添加
-                    </div>
-                  }
+                <button
+                  class="happy-kanban-detail__edit-btn"
+                  onClick={() => startEditing('requirements')}
                 >
-                  <div class="happy-kanban-detail__content-box">
-                    <MarkdownViewer content={props.story.requirements} />
+                  编辑
+                </button>
+              </div>
+              <Show
+                when={props.story.requirements}
+                fallback={
+                  <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--empty">
+                    暂无需求描述，点击编辑添加
                   </div>
-                </Show>
+                }
+              >
+                <div class="happy-kanban-detail__content-box">
+                  <MarkdownViewer content={props.story.requirements} />
+                </div>
               </Show>
             </div>
 
@@ -342,46 +355,24 @@ function TaskDetailContent(props: { story: Story }) {
             <div class="happy-kanban-detail__section">
               <div class="happy-kanban-detail__section-header">
                 <h4 class="happy-kanban-detail__section-title">✅ 验收标准（用户）</h4>
-                <Show when={editingField() !== 'userAcceptanceCriteria'}>
-                  <button
-                    class="happy-kanban-detail__edit-btn"
-                    onClick={() => startEditing('userAcceptanceCriteria')}
-                  >
-                    编辑
-                  </button>
-                </Show>
-              </div>
-              <Show when={editingField() === 'userAcceptanceCriteria'}>
-                <div class="happy-kanban-detail__editor-area">
-                  <MarkdownEditor
-                    content={acceptanceDraft()}
-                    onChange={setAcceptanceDraft}
-                    placeholder="输入验收标准（支持 Markdown 格式）..."
-                    minHeight="150px"
-                  />
-                  <div class="happy-kanban-detail__edit-actions">
-                    <Button variant="ghost" size="sm" onClick={cancelEdit}>
-                      取消
-                    </Button>
-                    <Button variant="primary" size="sm" onClick={saveAcceptance}>
-                      保存
-                    </Button>
-                  </div>
-                </div>
-              </Show>
-              <Show when={editingField() !== 'userAcceptanceCriteria'}>
-                <Show
-                  when={props.story.userAcceptanceCriteria}
-                  fallback={
-                    <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--empty">
-                      暂无验收标准，点击编辑添加
-                    </div>
-                  }
+                <button
+                  class="happy-kanban-detail__edit-btn"
+                  onClick={() => startEditing('userAcceptanceCriteria')}
                 >
-                  <div class="happy-kanban-detail__content-box">
-                    <MarkdownViewer content={props.story.userAcceptanceCriteria} />
+                  编辑
+                </button>
+              </div>
+              <Show
+                when={props.story.userAcceptanceCriteria}
+                fallback={
+                  <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--empty">
+                    暂无验收标准，点击编辑添加
                   </div>
-                </Show>
+                }
+              >
+                <div class="happy-kanban-detail__content-box">
+                  <MarkdownViewer content={props.story.userAcceptanceCriteria} />
+                </div>
               </Show>
             </div>
 
@@ -513,6 +504,26 @@ function TaskDetailContent(props: { story: Story }) {
         content={modalContent()?.content ?? ''}
         isMarkdown={modalContent()?.isMarkdown}
         onClose={() => setModalContent(null)}
+      />
+
+      <EditorModal
+        open={editingField() === 'requirements'}
+        title="📋 编辑用户需求"
+        content={requirementsDraft()}
+        onChange={setRequirementsDraft}
+        onSave={saveRequirements}
+        onClose={cancelEdit}
+        placeholder="输入用户需求（支持 Markdown 格式）..."
+      />
+
+      <EditorModal
+        open={editingField() === 'userAcceptanceCriteria'}
+        title="✅ 编辑验收标准"
+        content={acceptanceDraft()}
+        onChange={setAcceptanceDraft}
+        onSave={saveAcceptance}
+        onClose={cancelEdit}
+        placeholder="输入验收标准（支持 Markdown 格式）..."
       />
     </div>
   );
