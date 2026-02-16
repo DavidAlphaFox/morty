@@ -113,7 +113,6 @@ export const SheetOverlay: ParentComponent<JSX.HTMLAttributes<HTMLDivElement>> =
         [local.class || '']: !!local.class,
       }}
       data-state={getDataState(context.isOpen())}
-      onClick={() => context.close()}
       {...local}
       {...rest}
     />

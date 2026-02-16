@@ -52,9 +52,9 @@ function ContentModal(props: {
   return (
     <Show when={props.open}>
       <Portal>
-        <div class="content-modal" onClick={() => props.onClose()} onKeyDown={handleKeyDown}>
+        <div class="content-modal" onKeyDown={handleKeyDown}>
           <div class="content-modal__backdrop" />
-          <div class="content-modal__dialog" onClick={(e) => e.stopPropagation()}>
+          <div class="content-modal__dialog">
             <div class="content-modal__header">
               <h3 class="content-modal__title">{props.title}</h3>
               <button class="content-modal__close" onClick={() => props.onClose()}>✕</button>

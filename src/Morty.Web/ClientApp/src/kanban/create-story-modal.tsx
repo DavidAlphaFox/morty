@@ -104,7 +104,7 @@ export function CreateStoryModal(props: CreateStoryModalProps) {
 
   return (
     <div class="morty-modal morty-modal--large">
-      <div class="morty-modal__overlay" onClick={props.onCancel} />
+      <div class="morty-modal__overlay" />
       <div class="morty-modal__content">
         <div class="morty-modal__header">
           <h2 class="morty-modal__title">创建新故事</h2>
