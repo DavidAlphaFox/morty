@@ -44,6 +44,10 @@ public interface IStoryRepository
     Task<List<Iteration>> GetIterationsByStoryIdAsync(int storyId, CancellationToken cancellationToken = default);
     /// <summary>获取故事的最新计划</summary>
     Task<Plan?> GetPlanByStoryIdAsync(int storyId, CancellationToken cancellationToken = default);
+    /// <summary>获取指定运行状态的所有故事</summary>
+    Task<List<Story>> GetByRunningStatusAsync(RunningStatus status, CancellationToken cancellationToken = default);
+    /// <summary>获取指定运行状态和阶段的所有故事</summary>
+    Task<List<Story>> GetByRunningStatusAndPhasesAsync(RunningStatus status, StoryPhase[] phases, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

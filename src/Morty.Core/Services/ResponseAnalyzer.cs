@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Morty.Core.Interfaces;
 
@@ -6,55 +5,57 @@ namespace Morty.Core.Services;
 
 /// <summary>
 /// 响应分析器
-/// 使用正则表达式分析 Claude CLI 的输出
-/// 用于判断任务完成状态、测试结果、错误信息等
+/// 主要依赖进程 exit code（processSuccess）判断成功/失败
+/// 正则匹配仅用于提取辅助信息（文件列表等），不作为成败判断依据
 /// </summary>
 public partial class ResponseAnalyzer : IResponseAnalyzer
 {
     /// <summary>
-    /// 分析输出文本，返回完整的分析结果
-    /// 检查错误、测试状态、完成状态和修改的文件
+    /// 基于 exit code 和输出内容分析结果
     /// </summary>
     /// <param name="output">Claude CLI 的输出文本</param>
-    /// <returns>包含各项分析结果的 AnalysisResult 对象</returns>
-    public AnalysisResult Analyze(string output)
+    /// <param name="processSuccess">进程是否成功（exit code 0 且无 is_error）</param>
+    public AnalysisResult Analyze(string output, bool processSuccess)
     {
-        // 空输出检查
-        if (string.IsNullOrWhiteSpace(output))
+        // 空输出 + 失败 → 明确失败
+        if (string.IsNullOrWhiteSpace(output) && !processSuccess)
         {
             return new AnalysisResult(
                 IsComplete: false,
                 TestsPassing: false,
                 HasErrors: true,
                 ChangedFiles: [],
-                ErrorMessage: "空输出"
+                ErrorMessage: "空输出且进程失败"
             );
         }
 
-        // 使用正则表达式匹配各项指标
-        var hasErrors = ErrorPattern().IsMatch(output);
-        var testsPassing = TestsPassingPattern().IsMatch(output);
-        var testsFailing = TestsFailingPattern().IsMatch(output);
-        var isComplete = IsCompletePattern().IsMatch(output);
+        // 空输出 + 成功 → 成功但无内容
+        if (string.IsNullOrWhiteSpace(output) && processSuccess)
+        {
+            return new AnalysisResult(
+                IsComplete: true,
+                TestsPassing: false,
+                HasErrors: false,
+                ChangedFiles: [],
+                ErrorMessage: null
+            );
+        }
+
         var changedFiles = ExtractChangedFiles(output);
 
+        // 主要依赖 processSuccess 判断
         return new AnalysisResult(
-            // 完成 = 有完成标记且无错误
-            IsComplete: isComplete && !hasErrors,
-            // 测试通过 = 有通过标记且无失败标记
-            TestsPassing: testsPassing && !testsFailing,
-            HasErrors: hasErrors,
+            IsComplete: processSuccess,
+            TestsPassing: processSuccess,
+            HasErrors: !processSuccess,
             ChangedFiles: changedFiles,
-            ErrorMessage: hasErrors ? ExtractErrorMessage(output) : null
+            ErrorMessage: processSuccess ? null : "进程执行失败"
         );
     }
 
     /// <summary>
     /// 提取计划内容
-    /// 从输出中解析 JSON 格式的计划内容
     /// </summary>
-    /// <param name="output">Claude CLI 的输出文本</param>
-    /// <returns>PlanResult 对象，如果未找到计划则返回 null</returns>
     public PlanResult? ExtractPlan(string output)
     {
         var planMatch = PlanPattern().Match(output);
@@ -72,33 +73,8 @@ public partial class ResponseAnalyzer : IResponseAnalyzer
     }
 
     /// <summary>
-    /// 检查实现是否完成
-    /// 通过检测完成状态标记且无错误来判断
-    /// </summary>
-    /// <param name="output">Claude CLI 的输出文本</param>
-    /// <returns>如果实现完成返回 true</returns>
-    public bool IsImplementationComplete(string output)
-    {
-        return IsCompletePattern().IsMatch(output) && !ErrorPattern().IsMatch(output);
-    }
-
-    /// <summary>
-    /// 检查测试是否通过
-    /// 通过检测测试通过标记且无失败标记来判断
-    /// </summary>
-    /// <param name="output">Claude CLI 的输出文本</param>
-    /// <returns>如果测试通过返回 true</returns>
-    public bool AreTestsPassing(string output)
-    {
-        return TestsPassingPattern().IsMatch(output) && !TestsFailingPattern().IsMatch(output);
-    }
-
-    /// <summary>
     /// 提取修改的文件列表
-    /// 从输出中解析包含文件列表的代码块
     /// </summary>
-    /// <param name="output">Claude CLI 的输出文本</param>
-    /// <returns>修改的文件路径集合</returns>
     public IEnumerable<string> ExtractChangedFiles(string output)
     {
         var files = new List<string>();
@@ -115,34 +91,6 @@ public partial class ResponseAnalyzer : IResponseAnalyzer
 
         return files.Distinct();
     }
-
-    /// <summary>
-    /// 提取错误消息
-    /// 从输出中提取第一个匹配的错误信息
-    /// </summary>
-    /// <param name="output">Claude CLI 的输出文本</param>
-    /// <returns>错误消息字符串</returns>
-    private static string? ExtractErrorMessage(string output)
-    {
-        var errorMatch = ErrorPattern().Match(output);
-        return errorMatch.Success ? errorMatch.Groups[1].Value.Trim() : "未知错误";
-    }
-
-    // 错误模式：匹配 error, failed, exception, fatal 等关键词
-    [GeneratedRegex(@"(?i)(error|failed|exception|fatal)", RegexOptions.Multiline)]
-    private static partial Regex ErrorPattern();
-
-    // 测试通过模式：匹配 tests pass, tests passed, all tests passed 等
-    [GeneratedRegex(@"(?i)(tests?\s+(pass|passed|success|ok)|all\s+tests?\s+passed)", RegexOptions.Multiline)]
-    private static partial Regex TestsPassingPattern();
-
-    // 测试失败模式：匹配 tests fail, tests failed, FAIL 等
-    [GeneratedRegex(@"(?i)(tests?\s+(fail|failures?|error)|failed|FAIL)", RegexOptions.Multiline)]
-    private static partial Regex TestsFailingPattern();
-
-    // 完成状态模式：匹配 complete, done, finished, implementation complete
-    [GeneratedRegex(@"(?i)(complete|done|finished|implementation\s+complete)", RegexOptions.Multiline)]
-    private static partial Regex IsCompletePattern();
 
     // 计划内容模式：匹配 JSON 代码块中的 Plan 字段
     [GeneratedRegex(@"```(?:json)?\s*\{[\s\S]*?""Plan""[\s\S]*?\}", RegexOptions.Multiline)]

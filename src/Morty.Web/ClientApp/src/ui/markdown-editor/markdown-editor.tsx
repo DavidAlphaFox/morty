@@ -55,8 +55,15 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
         },
       },
       onUpdate: ({ editor: e }) => {
+        // 使用 Tiptap 的 HTML 输出，但我们希望存储 Markdown 格式
+        // 这里先存储 HTML，后续可以扩展支持 Markdown
         const html = e.getHTML();
-        props.onChange(html);
+        // 简单转换为纯文本（去掉HTML标签），作为临时方案
+        // 更好的做法是使用 tiptap-markdown 扩展
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        const text = tempDiv.textContent || tempDiv.innerText || '';
+        props.onChange(text);
       },
     });
 
@@ -215,12 +222,31 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
 
 /**
  * Markdown 内容渲染组件（只读）
+ * 支持原始 Markdown 文本和 HTML 内容
  */
 export function MarkdownViewer(props: { content: string; class?: string }) {
+  const [html, setHtml] = createSignal('');
+
+  createEffect(async () => {
+    const content = props.content;
+    if (!content) {
+      setHtml('');
+      return;
+    }
+    // 检测内容是否已经是 HTML（包含常见 HTML 标签）
+    if (/<[a-z][\s\S]*>/i.test(content)) {
+      setHtml(content);
+    } else {
+      // 原始 Markdown，使用 marked 解析
+      const { marked } = await import('marked');
+      setHtml(marked.parse(content, { async: false }) as string);
+    }
+  });
+
   return (
     <div
       class={`morty-markdown-viewer ${props.class || ''}`}
-      innerHTML={props.content}
+      innerHTML={html()}
     />
   );
 }

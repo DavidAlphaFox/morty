@@ -28,14 +28,10 @@ public record ClaudeResponse(
 /// </summary>
 public interface IResponseAnalyzer
 {
-    /// <summary>分析输出</summary>
-    AnalysisResult Analyze(string output);
+    /// <summary>基于 exit code 和输出内容分析结果</summary>
+    AnalysisResult Analyze(string output, bool processSuccess);
     /// <summary>提取计划</summary>
     PlanResult? ExtractPlan(string output);
-    /// <summary>检查实现是否完成</summary>
-    bool IsImplementationComplete(string output);
-    /// <summary>检查测试是否通过</summary>
-    bool AreTestsPassing(string output);
     /// <summary>提取修改的文件</summary>
     IEnumerable<string> ExtractChangedFiles(string output);
 }

@@ -198,6 +198,30 @@ export async function startStoryPhase(id: number, dto: StartPhaseDto): Promise<S
 }
 
 /**
+ * 启动故事（暂停 -> 运行）
+ * @param id 故事 ID
+ * @returns 更新后的故事
+ */
+export async function startStory(id: number): Promise<Story> {
+  const res = await fetch(`${BASE}/stories/${id}/start`, {
+    method: 'POST',
+  });
+  return json<Story>(res);
+}
+
+/**
+ * 暂停故事（运行 -> 暂停）
+ * @param id 故事 ID
+ * @returns 更新后的故事
+ */
+export async function pauseStory(id: number): Promise<Story> {
+  const res = await fetch(`${BASE}/stories/${id}/pause`, {
+    method: 'POST',
+  });
+  return json<Story>(res);
+}
+
+/**
  * 重新生成详细实施计划
  * @param id 故事 ID
  * @returns 更新后的故事

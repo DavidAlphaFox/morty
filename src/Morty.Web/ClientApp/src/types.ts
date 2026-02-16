@@ -8,7 +8,7 @@
  * - Pending: 初始状态
  * - RequirementsPlanning: 计划分析阶段 - 生成详细计划
  * - AcceptancePlanning: 验收标准阶段 - 细化验收标准
- * - Coding: 编码阶段
+ * - Executing: 编码阶段
  * - Testing: 测试阶段
  * - Acceptance: 验收阶段
  * - Completed: 完成
@@ -18,7 +18,7 @@ export type StoryPhase =
   | 'Pending'
   | 'RequirementsPlanning'
   | 'AcceptancePlanning'
-  | 'Coding'
+  | 'Executing'
   | 'Testing'
   | 'Acceptance'
   | 'Completed'
@@ -55,7 +55,7 @@ export const STORY_PHASES: StoryPhase[] = [
   'Pending',
   'RequirementsPlanning',
   'AcceptancePlanning',
-  'Coding',
+  'Executing',
   'Testing',
   'Acceptance',
   'Completed',
@@ -69,7 +69,7 @@ export const PHASE_CONFIG: Record<StoryPhase, { title: string; color: string }> 
   Pending:              { title: 'Pending',              color: '#919eab' },  // 灰色
   RequirementsPlanning: { title: 'Requirements',        color: '#8b5cf6' },  // 紫色
   AcceptancePlanning:   { title: 'Acceptance',          color: '#a855f7' },  // 紫色
-  Coding:              { title: 'Coding',              color: '#3b82f6' },  // 蓝色
+  Executing:              { title: 'Executing',              color: '#3b82f6' },  // 蓝色
   Testing:              { title: 'Testing',             color: '#f59e0b' },  // 橙色
   Acceptance:           { title: 'Acceptance',          color: '#06b6d4' },  // 青色
   Completed:            { title: 'Done',               color: '#22c55e' },  // 绿色
@@ -79,13 +79,13 @@ export const PHASE_CONFIG: Record<StoryPhase, { title: string; color: string }> 
 /**
  * Kanban列ID类型（基于Phase分组，合并为6列）
  */
-export type KanbanColumnId = 'Pending' | 'Planning' | 'Coding' | 'Testing' | 'Completed' | 'Failed';
+export type KanbanColumnId = 'Pending' | 'Planning' | 'Executing' | 'Testing' | 'Completed' | 'Failed';
 
 /**
  * 所有Kanban列
  */
 export const KANBAN_COLUMNS: KanbanColumnId[] = [
-  'Pending', 'Planning', 'Coding', 'Testing', 'Completed', 'Failed'
+  'Pending', 'Planning', 'Executing', 'Testing', 'Completed', 'Failed'
 ];
 
 /**
@@ -96,7 +96,7 @@ export const PHASE_TO_COLUMN: Record<StoryPhase, KanbanColumnId> = {
   Pending: 'Pending',
   RequirementsPlanning: 'Planning',
   AcceptancePlanning: 'Planning',  // 合并到Planning
-  Coding: 'Coding',
+  Executing: 'Executing',
   Testing: 'Testing',
   Acceptance: 'Testing',           // 验收阶段暂时归入Testing
   Completed: 'Completed',
@@ -109,7 +109,7 @@ export const PHASE_TO_COLUMN: Record<StoryPhase, KanbanColumnId> = {
 export const KANBAN_COLUMN_CONFIG: Record<KanbanColumnId, { title: string; color: string }> = {
   Pending:   { title: '待办',   color: '#919eab' },
   Planning:  { title: '规划中',  color: '#8b5cf6' },
-  Coding:    { title: '开发中',    color: '#3b82f6' },
+  Executing:    { title: '执行中',    color: '#3b82f6' },
   Testing:   { title: '测试中',   color: '#f59e0b' },
   Completed: { title: '已完成',      color: '#22c55e' },
   Failed:    { title: '失败',    color: '#ef4444' },
@@ -121,7 +121,7 @@ export const KANBAN_COLUMN_CONFIG: Record<KanbanColumnId, { title: string; color
 export const COLUMN_TO_DEFAULT_PHASE: Record<KanbanColumnId, StoryPhase> = {
   Pending: 'Pending',
   Planning: 'RequirementsPlanning',
-  Coding: 'Coding',
+  Executing: 'Executing',
   Testing: 'Testing',
   Completed: 'Completed',
   Failed: 'Failed',
@@ -163,7 +163,7 @@ export interface Story {
   completedAt: string | null; // 完成时间 (ISO 格式)，未完成则为 null
 
   // 调度控制字段
-  isPaused: boolean;           // 是否暂停
+  runningStatus: RunningStatus;  // 运行状态：Paused/Pending/Running
   source: StorySource;         // 故事来源
 
   // 多阶段处理相关字段
@@ -177,6 +177,14 @@ export interface Story {
   // 依赖关系
   dependencies: number[];      // 依赖的故事ID列表
 }
+
+/**
+ * 故事运行状态
+ * - Paused: 暂停
+ * - Pending: 排队等待中
+ * - Running: 正在运行
+ */
+export type RunningStatus = 'Paused' | 'Pending' | 'Running';
 
 /**
  * 故事来源

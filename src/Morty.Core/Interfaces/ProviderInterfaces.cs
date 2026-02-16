@@ -18,7 +18,9 @@ public record ProviderRequest(
     string Message,
     string? SystemPrompt = null,
     Dictionary<string, object>? Parameters = null,
-    bool UsePlanMode = false
+    bool UsePlanMode = false,
+    string? WorkingDirectory = null,
+    string? EnvironmentVariables = null
 );
 
 /// <summary>

@@ -5,6 +5,7 @@
  */
 
 import { createSignal, createResource, Show, For } from 'solid-js';
+import { Portal } from 'solid-js/web';
 import { SheetRoot, SheetContent } from '@ui/sheet';
 import { TabsRoot, TabsList, TabsTrigger, TabsContent } from '@ui/tabs';
 import { Button } from '@ui/button';
@@ -36,11 +37,48 @@ function formatDuration(ms: number): string {
   return `${(ms / 60000).toFixed(1)}m`;
 }
 
+/** 全屏内容预览模态框 */
+function ContentModal(props: {
+  open: boolean;
+  title: string;
+  content: string;
+  isMarkdown?: boolean;
+  onClose: () => void;
+}) {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') props.onClose();
+  };
+
+  return (
+    <Show when={props.open}>
+      <Portal>
+        <div class="content-modal" onClick={() => props.onClose()} onKeyDown={handleKeyDown}>
+          <div class="content-modal__backdrop" />
+          <div class="content-modal__dialog" onClick={(e) => e.stopPropagation()}>
+            <div class="content-modal__header">
+              <h3 class="content-modal__title">{props.title}</h3>
+              <button class="content-modal__close" onClick={() => props.onClose()}>✕</button>
+            </div>
+            <div class="content-modal__body">
+              <Show when={props.isMarkdown} fallback={
+                <pre class="content-modal__pre">{props.content}</pre>
+              }>
+                <MarkdownViewer content={props.content} />
+              </Show>
+            </div>
+          </div>
+        </div>
+      </Portal>
+    </Show>
+  );
+}
+
 function TaskDetailContent(props: { story: Story }) {
   const kanban = useKanbanContext();
   const [showColumnMenu, setShowColumnMenu] = createSignal(false);
   const [editingField, setEditingField] = createSignal<string | null>(null);
   const [regenerating, setRegenerating] = createSignal<string | null>(null);
+  const [modalContent, setModalContent] = createSignal<{ title: string; content: string; isMarkdown?: boolean } | null>(null);
 
   // 编辑中的内容（本地状态）
   const [requirementsDraft, setRequirementsDraft] = createSignal(props.story.requirements);
@@ -368,8 +406,14 @@ function TaskDetailContent(props: { story: Story }) {
                   </div>
                 }
               >
-                <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--ai">
-                  <MarkdownViewer content={props.story.detailedPlan} />
+                <div
+                  class="happy-kanban-detail__content-box happy-kanban-detail__content-box--ai happy-kanban-detail__content-box--clickable"
+                  onClick={() => setModalContent({ title: '🤖 详细计划（AI生成）', content: props.story.detailedPlan, isMarkdown: true })}
+                >
+                  <div class="happy-kanban-detail__content-clamp">
+                    <MarkdownViewer content={props.story.detailedPlan} />
+                  </div>
+                  <span class="happy-kanban-detail__content-expand">点击查看全部</span>
                 </div>
               </Show>
             </div>
@@ -395,8 +439,14 @@ function TaskDetailContent(props: { story: Story }) {
                   </div>
                 }
               >
-                <div class="happy-kanban-detail__content-box happy-kanban-detail__content-box--ai">
-                  <MarkdownViewer content={props.story.acceptanceCriteria} />
+                <div
+                  class="happy-kanban-detail__content-box happy-kanban-detail__content-box--ai happy-kanban-detail__content-box--clickable"
+                  onClick={() => setModalContent({ title: '🎯 细化验收标准（AI生成）', content: props.story.acceptanceCriteria, isMarkdown: true })}
+                >
+                  <div class="happy-kanban-detail__content-clamp">
+                    <MarkdownViewer content={props.story.acceptanceCriteria} />
+                  </div>
+                  <span class="happy-kanban-detail__content-expand">点击查看全部</span>
                 </div>
               </Show>
             </div>
@@ -438,7 +488,15 @@ function TaskDetailContent(props: { story: Story }) {
                         {iter.completedAt ? ` → ${formatDate(iter.completedAt)}` : ' (运行中)'}
                       </div>
                       <Show when={iter.output}>
-                        <div class="happy-kanban-detail__iteration-output">{iter.output}</div>
+                        <div
+                          class="happy-kanban-detail__iteration-output happy-kanban-detail__content-box--clickable"
+                          onClick={() => setModalContent({ title: `迭代 #${iter.iterationNum} 输出`, content: iter.output! })}
+                        >
+                          <div class="happy-kanban-detail__content-clamp">
+                            {iter.output}
+                          </div>
+                          <span class="happy-kanban-detail__content-expand">点击查看全部</span>
+                        </div>
                       </Show>
                     </div>
                   )}
@@ -448,6 +506,14 @@ function TaskDetailContent(props: { story: Story }) {
           </Show>
         </TabsContent>
       </TabsRoot>
+
+      <ContentModal
+        open={!!modalContent()}
+        title={modalContent()?.title ?? ''}
+        content={modalContent()?.content ?? ''}
+        isMarkdown={modalContent()?.isMarkdown}
+        onClose={() => setModalContent(null)}
+      />
     </div>
   );
 }

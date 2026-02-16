@@ -62,8 +62,8 @@ public class StoriesController : ControllerBase
             Status = isAutoDiscovered ? "Pending" : "Pending",
             Phase = StoryPhase.Pending,
             Source = dto.Source,
-            // 用户添加的任务默认暂停，自动发现的任务默认开始
-            IsPaused = !isAutoDiscovered,
+            // 用户添加的任务默认暂停，自动发现的任务默认排队等待
+            RunningStatus = isAutoDiscovered ? RunningStatus.Pending : RunningStatus.Paused,
             CreatedAt = DateTime.UtcNow,
             // 支持创建时直接填写需求和验收标准
             Requirements = dto.Requirements ?? string.Empty,
@@ -174,7 +174,7 @@ public class StoriesController : ControllerBase
             case StoryPhase.AcceptancePlanning:
                 story.Status = "Planning";
                 break;
-            case StoryPhase.Coding:
+            case StoryPhase.Executing:
             case StoryPhase.Testing:
                 story.Status = "InProgress";
                 break;
@@ -265,7 +265,7 @@ public class StoriesController : ControllerBase
             return BadRequest("已完成或失败的故事不能重新开始");
         }
 
-        story.IsPaused = false;
+        story.RunningStatus = RunningStatus.Pending;
         await _storyRepository.UpdateAsync(story);
 
         return Ok(MapToDto(story));
@@ -289,7 +289,7 @@ public class StoriesController : ControllerBase
             return BadRequest("已完成或失败的故事不能暂停");
         }
 
-        story.IsPaused = true;
+        story.RunningStatus = RunningStatus.Paused;
         await _storyRepository.UpdateAsync(story);
 
         return Ok(MapToDto(story));
@@ -350,7 +350,7 @@ public class StoriesController : ControllerBase
         Status = story.Status,
         CreatedAt = story.CreatedAt,
         CompletedAt = story.CompletedAt,
-        IsPaused = story.IsPaused,
+        RunningStatus = story.RunningStatus,
         Source = story.Source,
         Phase = story.Phase,
         Requirements = story.Requirements,

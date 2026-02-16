@@ -28,20 +28,28 @@ const [SheetContext, useSheetContext] = createSafeContext<SheetContextValue>(
 export { useSheetContext };
 
 export const SheetRoot: ParentComponent<SheetRootProps> = (props) => {
-  const [local] = splitProps(props, ['defaultOpen', 'onOpenChange', 'children']);
+  const [local, others] = splitProps(props, ['defaultOpen', 'onOpenChange', 'open', 'children']);
 
   const [triggerRef, setTriggerRef] = createSignal<HTMLButtonElement>();
   const [contentRef, setContentRef] = createSignal<HTMLDivElement>();
+  const [internalOpen, setInternalOpen] = createSignal(!!local.defaultOpen);
 
-  const disclosure = createDisclosure({
-    get defaultOpen() { return local.defaultOpen; },
-    get onOpenChange() { return local.onOpenChange; },
-  });
+  // 使用 open 属性或内部状态
+  const isOpen = () => local.open !== undefined ? local.open : internalOpen();
+
+  const handleOpenChange = (open: boolean) => {
+    if (local.open !== undefined) {
+      local.onOpenChange?.(open);
+    } else {
+      setInternalOpen(open);
+      local.onOpenChange?.(open);
+    }
+  };
 
   const context: SheetContextValue = {
-    isOpen: disclosure.isOpen,
-    setOpen: disclosure.setOpen,
-    close: disclosure.close,
+    isOpen,
+    setOpen: handleOpenChange,
+    close: () => handleOpenChange(false),
     triggerRef,
     setTriggerRef,
     contentRef,

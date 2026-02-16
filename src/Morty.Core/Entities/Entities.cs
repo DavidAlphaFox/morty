@@ -42,8 +42,8 @@ public class Story
     public string UserAcceptanceCriteria { get; set; } = string.Empty;
     /// <summary>当前阶段内的迭代次数</summary>
     public int CurrentIteration { get; set; } = 0;
-    /// <summary>是否暂停（暂停时不参与调度）</summary>
-    public bool IsPaused { get; set; } = true;
+    /// <summary>运行状态：Paused-暂停, Pending-排队等待, Running-正在运行</summary>
+    public RunningStatus RunningStatus { get; set; } = RunningStatus.Paused;
     /// <summary>故事来源</summary>
     public StorySource Source { get; set; } = StorySource.UserAdded;
     /// <summary>标签（JSON 数组，如 ["frontend", "api", "urgent"]）</summary>
@@ -134,8 +134,8 @@ public enum StoryPhase
     RequirementsPlanning,
     /// <summary>验收标准阶段 - 细化验收标准</summary>
     AcceptancePlanning,
-    /// <summary>编码阶段</summary>
-    Coding,
+    /// <summary>执行阶段</summary>
+    Executing,
     /// <summary>测试阶段</summary>
     Testing,
     /// <summary>验收阶段</summary>
@@ -144,6 +144,19 @@ public enum StoryPhase
     Completed,
     /// <summary>失败</summary>
     Failed
+}
+
+/// <summary>
+/// 故事运行状态枚举
+/// </summary>
+public enum RunningStatus
+{
+    /// <summary>暂停</summary>
+    Paused,
+    /// <summary>排队等待中</summary>
+    Pending,
+    /// <summary>正在运行</summary>
+    Running
 }
 
 /// <summary>
@@ -164,7 +177,7 @@ public enum StoryQueueType
 {
     /// <summary>计划队列 - RequirementsPlanning, AcceptancePlanning</summary>
     Planning,
-    /// <summary>执行队列 - Coding, Testing, Acceptance</summary>
+    /// <summary>执行队列 - Executing, Testing, Acceptance</summary>
     Execution
 }
 

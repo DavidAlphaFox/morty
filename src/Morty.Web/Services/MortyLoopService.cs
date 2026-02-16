@@ -28,7 +28,7 @@ public class MortyLoopService : BackgroundService
 
     /// <summary>Planning 队列信号量 - 保证同一时刻只有一个 Planning 在运行</summary>
     private readonly SemaphoreSlim _planningSemaphore = new(1, 1);
-    /// <summary>Execution 队列信号量 - 保证同一时刻只有一个 Coding/Testing/Acceptance 在运行</summary>
+    /// <summary>Execution 队列信号量 - 保证同一时刻只有一个 Executing/Testing/Acceptance 在运行</summary>
     private readonly SemaphoreSlim _executionSemaphore = new(1, 1);
 
     private bool _isRunning;
@@ -60,6 +60,9 @@ public class MortyLoopService : BackgroundService
         _isRunning = true;
         _logger.Information("MortyLoopService 启动中...");
 
+        // 启动时恢复中断的故事（上次异常退出时 RunningStatus 仍为 Running 的故事）
+        await RecoverInterruptedStoriesAsync(stoppingToken);
+
         // 创建两个并行任务：Planning 循环和 Execution 循环
         var planningTask = RunPlanningLoopAsync(stoppingToken);
         var executionTask = RunExecutionLoopAsync(stoppingToken);
@@ -68,6 +71,106 @@ public class MortyLoopService : BackgroundService
 
         _isRunning = false;
         _logger.Information("MortyLoopService 已停止");
+    }
+
+    /// <summary>
+    /// 启动时恢复中断的故事
+    /// 1. 将 RunningStatus=Running 的故事重置为 Pending
+    /// 2. 检查规划阶段完整性（缺少必要计划则退回对应阶段）
+    /// 3. 检查 Planning 状态但 RunningStatus=Pending 的故事，确认规划阶段是否正确
+    /// </summary>
+    private async Task RecoverInterruptedStoriesAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var storyRepo = scope.ServiceProvider.GetRequiredService<IStoryRepository>();
+            var planRepo = scope.ServiceProvider.GetRequiredService<IPlanRepository>();
+
+            // 恢复 Running 状态的故事（服务崩溃时中断的）
+            var runningStories = await storyRepo.GetByRunningStatusAsync(RunningStatus.Running, stoppingToken);
+            // 也检查 Pending 状态中处于规划阶段的故事（可能部分完成了规划）
+            var pendingPlanningStories = await storyRepo.GetByRunningStatusAndPhasesAsync(
+                RunningStatus.Pending,
+                new[] { StoryPhase.RequirementsPlanning, StoryPhase.AcceptancePlanning },
+                stoppingToken);
+
+            var allStoriesToCheck = runningStories.Concat(pendingPlanningStories).ToList();
+
+            if (!allStoriesToCheck.Any())
+            {
+                _logger.Information("无中断的故事需要恢复");
+                return;
+            }
+
+            _logger.Information("发现 {Count} 个需要检查的故事，开始恢复...", allStoriesToCheck.Count);
+
+            foreach (var story in allStoriesToCheck)
+            {
+                var wasRunning = story.RunningStatus == RunningStatus.Running;
+                _logger.Information("检查故事 {StoryId}，阶段: {Phase}，RunningStatus: {Status}",
+                    story.StoryId, story.Phase, story.RunningStatus);
+
+                var detailedPlan = await planRepo.GetLatestByStoryIdAndTypeAsync(
+                    story.Id, PlanType.DetailedPlan, stoppingToken);
+                var acceptanceCriteria = await planRepo.GetLatestByStoryIdAndTypeAsync(
+                    story.Id, PlanType.AcceptanceCriteria, stoppingToken);
+
+                var hasDetailedPlan = detailedPlan != null;
+                var hasAcceptanceCriteria = acceptanceCriteria != null;
+                var needsAcceptancePlanning = !string.IsNullOrWhiteSpace(story.UserAcceptanceCriteria);
+
+                // 根据实际的计划完成情况确定正确的阶段
+                if (!hasDetailedPlan)
+                {
+                    // 缺少详细计划，必须从需求规划开始
+                    if (story.Phase != StoryPhase.RequirementsPlanning)
+                    {
+                        _logger.Warning("故事 {StoryId} 缺少 DetailedPlan，退回 RequirementsPlanning", story.StoryId);
+                        story.Phase = StoryPhase.RequirementsPlanning;
+                        story.Status = "Planning";
+                        story.CurrentIteration = 0;
+                    }
+                }
+                else if (needsAcceptancePlanning && !hasAcceptanceCriteria)
+                {
+                    // 有详细计划，需要验收规划但尚未完成
+                    if (story.Phase != StoryPhase.AcceptancePlanning)
+                    {
+                        _logger.Warning("故事 {StoryId} 有 DetailedPlan 但缺少 AcceptanceCriteria，设为 AcceptancePlanning",
+                            story.StoryId);
+                        story.Phase = StoryPhase.AcceptancePlanning;
+                        story.Status = "Planning";
+                        story.CurrentIteration = 0;
+                    }
+                }
+                else if (hasDetailedPlan && (!needsAcceptancePlanning || hasAcceptanceCriteria))
+                {
+                    // 规划已完成，如果还在规划阶段则推进到执行
+                    if (story.Phase == StoryPhase.RequirementsPlanning || story.Phase == StoryPhase.AcceptancePlanning)
+                    {
+                        _logger.Information("故事 {StoryId} 规划已完成，推进到 Executing", story.StoryId);
+                        story.Phase = StoryPhase.Executing;
+                        story.Status = "InProgress";
+                        story.CurrentIteration = 0;
+                    }
+                }
+
+                // Running 状态的故事重置为 Pending
+                if (wasRunning)
+                {
+                    story.RunningStatus = RunningStatus.Pending;
+                }
+
+                await storyRepo.UpdateAsync(story, stoppingToken);
+                _logger.Information("故事 {StoryId} 恢复完成，阶段: {Phase}，RunningStatus: {RunningStatus}",
+                    story.StoryId, story.Phase, story.RunningStatus);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "恢复中断故事时出错");
+        }
     }
 
     /// <summary>
@@ -117,7 +220,7 @@ public class MortyLoopService : BackgroundService
     }
 
     /// <summary>
-    /// Execution 循环 - 处理 Coding、Testing 和 Acceptance 阶段
+    /// Execution 循环 - 处理 Executing、Testing 和 Acceptance 阶段
     /// </summary>
     private async Task RunExecutionLoopAsync(CancellationToken stoppingToken)
     {
@@ -213,6 +316,10 @@ public class MortyLoopService : BackgroundService
             await storyRepo.UpdateAsync(story, stoppingToken);
         }
 
+        // 设置故事为运行中状态（在阶段转换之后）
+        story.RunningStatus = RunningStatus.Running;
+        await storyRepo.UpdateAsync(story, stoppingToken);
+
         _logger.Information("正在处理故事 {StoryId}: {Title}, 阶段: {Phase}",
             story.StoryId, story.Title, story.Phase);
 
@@ -292,10 +399,21 @@ public class MortyLoopService : BackgroundService
             var (prompt, usePlanMode) = BuildPhasePrompt(
                 project.PrdJson, story, detailedPlan, acceptanceCriteria);
 
-            _logger.Information("使用 {Provider} 处理阶段 {Phase}, PlanMode: {UsePlanMode}",
-                _provider.Name, story.Phase, usePlanMode);
+            _logger.Information("使用 {Provider} 处理阶段 {Phase}, PlanMode: {UsePlanMode}, 工作目录: {WorkingDir}",
+                _provider.Name, story.Phase, usePlanMode, project.WorkingDirectory);
 
-            var request = new ProviderRequest(prompt, UsePlanMode: usePlanMode);
+            // 构建系统提示词：限制 Claude 只能在项目工作目录内操作
+            var systemPrompt = $"""
+                注意：你只能在当前目录 ({project.WorkingDirectory}) 及其子目录下工作，不能访问上级目录或目录外的任何文件。
+                如果需要访问文件，只能使用相对路径或此目录下的绝对路径。
+                """;
+
+            var request = new ProviderRequest(
+                prompt,
+                SystemPrompt: systemPrompt,
+                UsePlanMode: usePlanMode,
+                WorkingDirectory: project.WorkingDirectory
+            );
             var response = await _provider.SendMessageAsync(request, stoppingToken);
 
             iteration.CompletedAt = DateTime.UtcNow;
@@ -330,8 +448,8 @@ public class MortyLoopService : BackgroundService
             };
             await MortyHub.Broadcaster.NotifyIterationComplete(iterationDto);
 
-            // 分析响应
-            var analysis = _responseAnalyzer.Analyze(response.Content);
+            // 分析响应（基于 exit code + 输出内容）
+            var analysis = _responseAnalyzer.Analyze(response.Content, response.Success);
 
             // 记录验证
             var verification = new Verification
@@ -346,8 +464,8 @@ public class MortyLoopService : BackgroundService
 
             // 根据阶段处理结果并保存到 Plan 表
             var phaseSuccess = await HandlePhaseResultAsync(
-                story, response.Content, project.PrdJson, analysis,
-                planRepo, storyRepo, storyDependencyRepo, detailedPlan, acceptanceCriteria, stoppingToken);
+                story, response.Content, response.Success, analysis,
+                planRepo, storyRepo, storyDependencyRepo, stoppingToken);
 
             // 更新阶段历史
             phaseHistory.CompletedAt = DateTime.UtcNow;
@@ -356,14 +474,18 @@ public class MortyLoopService : BackgroundService
             await phaseHistoryRepo.UpdateAsync(phaseHistory, stoppingToken);
 
             // 根据阶段结果更新故事状态
+            _logger.Information("阶段处理完成: phaseSuccess={PhaseSuccess}, phase={Phase}", phaseSuccess, story.Phase);
+
             if (phaseSuccess)
             {
+                _logger.Information("阶段成功，转换到下一阶段，当前阶段: {Phase}", story.Phase);
                 await TransitionToNextPhaseAsync(story, storyRepo, stoppingToken);
             }
             else
             {
+                _logger.Information("阶段失败，增加迭代次数，当前阶段: {Phase}", story.Phase);
                 story.CurrentIteration++;
-                story.Status = analysis.IsComplete ? "Completed" : "InProgress";
+                story.RunningStatus = RunningStatus.Pending; // 允许重试
                 _circuitBreaker.RecordFailure();
                 await storyRepo.UpdateAsync(story, stoppingToken);
             }
@@ -402,7 +524,7 @@ public class MortyLoopService : BackgroundService
                 Status = story.Status,
                 CreatedAt = story.CreatedAt,
                 CompletedAt = story.CompletedAt,
-                IsPaused = story.IsPaused,
+                RunningStatus = story.RunningStatus,
                 Source = story.Source,
                 Phase = story.Phase,
                 Requirements = story.Requirements,
@@ -505,7 +627,7 @@ public class MortyLoopService : BackgroundService
                 3. 边界条件和异常情况
                 """,
 
-            StoryPhase.Coding => $"""
+            StoryPhase.Executing => $"""
                 请根据以下详细计划实施代码。
 
                 用户故事: {story.Title}
@@ -567,46 +689,66 @@ public class MortyLoopService : BackgroundService
 
     /// <summary>
     /// 处理阶段结果
+    /// 成功判断主要依赖 responseSuccess（exit code），不依赖正则匹配
     /// </summary>
     private async Task<bool> HandlePhaseResultAsync(
         Story story,
         string responseContent,
-        string prdJson,
+        bool responseSuccess,
         AnalysisResult analysis,
         IPlanRepository planRepo,
         IStoryRepository storyRepo,
         IStoryDependencyRepository storyDependencyRepo,
-        string? existingDetailedPlan,
-        string? existingAcceptanceCriteria,
         CancellationToken stoppingToken)
     {
         // 根据阶段类型处理结果并保存到 Plan 表
-        return story.Phase switch
+        switch (story.Phase)
         {
-            StoryPhase.RequirementsPlanning =>
-                await HandleRequirementsPlanningResultAsync(
-                    story, responseContent, planRepo, storyRepo, storyDependencyRepo, stoppingToken),
+            case StoryPhase.RequirementsPlanning:
+                // Planning: exit code 成功 + 非空输出
+                if (responseSuccess && !string.IsNullOrWhiteSpace(responseContent))
+                {
+                    await HandleRequirementsPlanningResultAsync(
+                        story, responseContent, planRepo, storyRepo, storyDependencyRepo, stoppingToken);
+                    return true;
+                }
+                return false;
 
-            StoryPhase.AcceptancePlanning =>
-                await HandleAcceptancePlanningResultAsync(
-                    story, responseContent, planRepo, stoppingToken),
+            case StoryPhase.AcceptancePlanning:
+                // AcceptancePlanning: exit code 成功 + 非空输出
+                if (responseSuccess && !string.IsNullOrWhiteSpace(responseContent))
+                {
+                    await HandleAcceptancePlanningResultAsync(
+                        story, responseContent, planRepo, stoppingToken);
+                    return true;
+                }
+                return false;
 
-            StoryPhase.Coding =>
-                await SaveExecutionPlanAsync(story, responseContent, "Coding", planRepo, stoppingToken),
+            case StoryPhase.Executing:
+                // Coding: exit code 成功即可
+                if (responseSuccess)
+                    await SaveExecutionPlanAsync(story, responseContent, "Executing", planRepo, stoppingToken);
+                return responseSuccess;
 
-            StoryPhase.Testing =>
-                await SaveExecutionPlanAsync(story, responseContent, "Testing", planRepo, stoppingToken),
+            case StoryPhase.Testing:
+                // Testing: exit code 成功即可
+                if (responseSuccess)
+                    await SaveExecutionPlanAsync(story, responseContent, "Testing", planRepo, stoppingToken);
+                return responseSuccess;
 
-            StoryPhase.Acceptance => analysis.IsComplete,
+            case StoryPhase.Acceptance:
+                // Acceptance: exit code 成功即可（不依赖 analysis.IsComplete）
+                return responseSuccess;
 
-            _ => analysis.IsComplete
-        };
+            default:
+                return responseSuccess;
+        }
     }
 
     /// <summary>
     /// 处理需求计划阶段结果
     /// </summary>
-    private async Task<bool> HandleRequirementsPlanningResultAsync(
+    private async Task HandleRequirementsPlanningResultAsync(
         Story story,
         string responseContent,
         IPlanRepository planRepo,
@@ -614,15 +756,11 @@ public class MortyLoopService : BackgroundService
         IStoryDependencyRepository storyDependencyRepo,
         CancellationToken stoppingToken)
     {
-        // 从响应中提取计划
-        var planResult = _responseAnalyzer.ExtractPlan(responseContent);
-        var planContent = planResult?.Plan ?? responseContent;
-
         // 保存到 Plan 表
         var plan = new Plan
         {
             StoryId = story.Id,
-            PlanContent = planContent,
+            PlanContent = responseContent,
             Type = PlanType.DetailedPlan,
             Output = responseContent,
             CreatedAt = DateTime.UtcNow
@@ -631,8 +769,6 @@ public class MortyLoopService : BackgroundService
 
         // 解析并创建发现的任务
         await ParseAndCreateDiscoveredTasksAsync(story, responseContent, storyRepo, storyDependencyRepo, stoppingToken);
-
-        return !string.IsNullOrEmpty(planContent);
     }
 
     /// <summary>
@@ -721,7 +857,7 @@ public class MortyLoopService : BackgroundService
                     Phase = StoryPhase.Pending,
                     Requirements = requirements,
                     Source = StorySource.AutoDiscovered,
-                    IsPaused = true, // 自动发现的任务默认暂停，等待人工确认
+                    RunningStatus = RunningStatus.Pending, // 自动发现的任务自动排队处理
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -748,28 +884,22 @@ public class MortyLoopService : BackgroundService
     /// <summary>
     /// 处理验收标准计划阶段结果
     /// </summary>
-    private async Task<bool> HandleAcceptancePlanningResultAsync(
+    private async Task HandleAcceptancePlanningResultAsync(
         Story story,
         string responseContent,
         IPlanRepository planRepo,
         CancellationToken stoppingToken)
     {
-        // 从响应中提取验收标准
-        var planResult = _responseAnalyzer.ExtractPlan(responseContent);
-        var planContent = planResult?.Plan ?? responseContent;
-
         // 保存到 Plan 表
         var plan = new Plan
         {
             StoryId = story.Id,
-            PlanContent = planContent,
+            PlanContent = responseContent,
             Type = PlanType.AcceptanceCriteria,
             Output = responseContent,
             CreatedAt = DateTime.UtcNow
         };
         await planRepo.AddAsync(plan, stoppingToken);
-
-        return !string.IsNullOrEmpty(planContent);
     }
 
     /// <summary>
@@ -797,6 +927,7 @@ public class MortyLoopService : BackgroundService
 
     /// <summary>
     /// 转换到下一阶段
+    /// 如果用户未提供验收标准，则跳过 AcceptancePlanning 阶段
     /// </summary>
     private async Task TransitionToNextPhaseAsync(
         Story story,
@@ -805,9 +936,12 @@ public class MortyLoopService : BackgroundService
     {
         var nextPhase = story.Phase switch
         {
-            StoryPhase.RequirementsPlanning => StoryPhase.AcceptancePlanning,
-            StoryPhase.AcceptancePlanning => StoryPhase.Coding,
-            StoryPhase.Coding => StoryPhase.Testing,
+            // 需求规划完成后：有用户验收标准则进入验收规划，否则直接进入执行
+            StoryPhase.RequirementsPlanning => string.IsNullOrWhiteSpace(story.UserAcceptanceCriteria)
+                ? StoryPhase.Executing
+                : StoryPhase.AcceptancePlanning,
+            StoryPhase.AcceptancePlanning => StoryPhase.Executing,
+            StoryPhase.Executing => StoryPhase.Testing,
             StoryPhase.Testing => StoryPhase.Acceptance,
             StoryPhase.Acceptance => StoryPhase.Completed,
             _ => story.Phase
@@ -822,18 +956,26 @@ public class MortyLoopService : BackgroundService
             case StoryPhase.RequirementsPlanning:
             case StoryPhase.AcceptancePlanning:
                 story.Status = "Planning";
+                story.RunningStatus = RunningStatus.Pending; // 允许下一轮处理
                 break;
-            case StoryPhase.Coding:
+            case StoryPhase.Executing:
             case StoryPhase.Testing:
                 story.Status = "InProgress";
+                story.RunningStatus = RunningStatus.Pending; // 允许下一轮处理
                 break;
             case StoryPhase.Acceptance:
                 story.Status = "Verifying";
+                story.RunningStatus = RunningStatus.Pending; // 允许下一轮处理
                 break;
             case StoryPhase.Completed:
                 story.Status = "Completed";
                 story.CompletedAt = DateTime.UtcNow;
+                story.RunningStatus = RunningStatus.Paused;
                 _logger.Information("故事 {StoryId} 成功完成所有阶段", story.StoryId);
+                break;
+            default:
+                // 非最终阶段，设置回 Pending 让其他故事有机会被处理
+                story.RunningStatus = RunningStatus.Pending;
                 break;
         }
 

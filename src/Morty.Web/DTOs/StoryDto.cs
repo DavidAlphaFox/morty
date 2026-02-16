@@ -15,7 +15,8 @@ public class StoryDto
     public DateTime? CompletedAt { get; set; }
 
     // 调度控制字段
-    public bool IsPaused { get; set; } = true;
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public RunningStatus RunningStatus { get; set; } = RunningStatus.Paused;
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public StorySource Source { get; set; } = StorySource.UserAdded;
 

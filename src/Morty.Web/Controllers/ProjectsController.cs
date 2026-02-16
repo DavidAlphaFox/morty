@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Morty.Core.Entities;
 using Morty.Core.Repositories;
 using Morty.Web.DTOs;
 
@@ -15,12 +16,14 @@ public class ProjectsController : ControllerBase
 {
     private readonly IProjectRepository _projectRepository;
     private readonly IStoryRepository _storyRepository;
+    private readonly IPlanRepository _planRepository;
     private readonly string _projectsRootDirectory;
 
-    public ProjectsController(IProjectRepository projectRepository, IStoryRepository storyRepository, IConfiguration configuration)
+    public ProjectsController(IProjectRepository projectRepository, IStoryRepository storyRepository, IPlanRepository planRepository, IConfiguration configuration)
     {
         _projectRepository = projectRepository;
         _storyRepository = storyRepository;
+        _planRepository = planRepository;
         _projectsRootDirectory = configuration["ProjectsRootDirectory"] ?? "/home/david/workspace/morty-projects";
     }
 
@@ -150,16 +153,32 @@ public class ProjectsController : ControllerBase
     public async Task<ActionResult<IEnumerable<StoryDto>>> GetProjectStories(int id)
     {
         var stories = await _storyRepository.GetByProjectIdAsync(id);
-        return Ok(stories.Select(s => new StoryDto
+        var dtos = new List<StoryDto>();
+        foreach (var s in stories)
         {
-            Id = s.Id,
-            ProjectId = s.ProjectId,
-            StoryId = s.StoryId,
-            Title = s.Title,
-            Priority = s.Priority,
-            Status = s.Status,
-            CreatedAt = s.CreatedAt,
-            CompletedAt = s.CompletedAt
-        }));
+            var detailedPlan = await _planRepository.GetLatestByStoryIdAndTypeAsync(s.Id, PlanType.DetailedPlan);
+            var acceptanceCriteria = await _planRepository.GetLatestByStoryIdAndTypeAsync(s.Id, PlanType.AcceptanceCriteria);
+
+            dtos.Add(new StoryDto
+            {
+                Id = s.Id,
+                ProjectId = s.ProjectId,
+                StoryId = s.StoryId,
+                Title = s.Title,
+                Priority = s.Priority,
+                Status = s.Status,
+                CreatedAt = s.CreatedAt,
+                CompletedAt = s.CompletedAt,
+                RunningStatus = s.RunningStatus,
+                Source = s.Source,
+                Phase = s.Phase,
+                Requirements = s.Requirements,
+                UserAcceptanceCriteria = s.UserAcceptanceCriteria,
+                DetailedPlan = detailedPlan?.PlanContent,
+                AcceptanceCriteria = acceptanceCriteria?.PlanContent,
+                CurrentIteration = s.CurrentIteration
+            });
+        }
+        return Ok(dtos);
     }
 }

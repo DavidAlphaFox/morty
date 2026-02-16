@@ -83,11 +83,11 @@ public class StoryRepository : IStoryRepository
     public async Task<Story?> GetNextPendingAsync(CancellationToken cancellationToken = default)
     {
         return await _context.Stories
-            .Where(s => !s.IsPaused
+            .Where(s => s.RunningStatus == RunningStatus.Pending
                 && (s.Status == "Pending" || s.Status == "InProgress"
                 || s.Phase == StoryPhase.RequirementsPlanning
                 || s.Phase == StoryPhase.AcceptancePlanning
-                || s.Phase == StoryPhase.Coding
+                || s.Phase == StoryPhase.Executing
                 || s.Phase == StoryPhase.Testing
                 || s.Phase == StoryPhase.Acceptance))
             .OrderBy(s => s.Priority == "High" ? 0 : s.Priority == "Medium" ? 1 : 2)
@@ -97,16 +97,18 @@ public class StoryRepository : IStoryRepository
 
     public async Task<Story?> GetNextPendingByQueueTypeAsync(StoryQueueType queueType, CancellationToken cancellationToken = default)
     {
-        // 定义各队列类型对应的阶段
+        // 定义各队列类型对应的阶段（包含 Pending 以便从待处理状态开始）
         var planningPhases = new[]
         {
+            StoryPhase.Pending,
             StoryPhase.RequirementsPlanning,
             StoryPhase.AcceptancePlanning
         };
 
         var executionPhases = new[]
         {
-            StoryPhase.Coding,
+            StoryPhase.Pending,
+            StoryPhase.Executing,
             StoryPhase.Testing,
             StoryPhase.Acceptance
         };
@@ -116,7 +118,7 @@ public class StoryRepository : IStoryRepository
             : executionPhases;
 
         return await _context.Stories
-            .Where(s => !s.IsPaused
+            .Where(s => s.RunningStatus == RunningStatus.Pending
                 && (s.Status == "Pending" || s.Status == "InProgress" || s.Status == "Planning" || s.Status == "Verifying")
                 && activePhases.Contains(s.Phase))
             .OrderBy(s => s.Priority == "High" ? 0 : s.Priority == "Medium" ? 1 : 2)
@@ -135,6 +137,20 @@ public class StoryRepository : IStoryRepository
     {
         _context.Stories.Update(story);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<List<Story>> GetByRunningStatusAsync(RunningStatus status, CancellationToken cancellationToken = default)
+    {
+        return await _context.Stories
+            .Where(s => s.RunningStatus == status)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<Story>> GetByRunningStatusAndPhasesAsync(RunningStatus status, StoryPhase[] phases, CancellationToken cancellationToken = default)
+    {
+        return await _context.Stories
+            .Where(s => s.RunningStatus == status && phases.Contains(s.Phase))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<int> GetIterationCountAsync(int storyId, CancellationToken cancellationToken = default)
@@ -225,6 +241,12 @@ public class PlanRepository : IPlanRepository
 
     public async Task<Plan> AddAsync(Plan plan, CancellationToken cancellationToken = default)
     {
+        // 自动递增 Version，避免唯一约束冲突 (StoryId, Type, Version)
+        var maxVersion = await _context.Plans
+            .Where(p => p.StoryId == plan.StoryId && p.Type == plan.Type)
+            .MaxAsync(p => (int?)p.Version, cancellationToken) ?? 0;
+        plan.Version = maxVersion + 1;
+
         _context.Plans.Add(plan);
         await _context.SaveChangesAsync(cancellationToken);
         return plan;
@@ -426,11 +448,11 @@ public class StoryDependencyRepository : IStoryDependencyRepository
     {
         // 获取所有待处理的 story（排除暂停的）
         var pendingStories = await _context.Stories
-            .Where(s => !s.IsPaused
+            .Where(s => s.RunningStatus == RunningStatus.Pending
                 && (s.Status == "Pending" || s.Status == "InProgress"
                 || s.Phase == StoryPhase.RequirementsPlanning
                 || s.Phase == StoryPhase.AcceptancePlanning
-                || s.Phase == StoryPhase.Coding
+                || s.Phase == StoryPhase.Executing
                 || s.Phase == StoryPhase.Testing
                 || s.Phase == StoryPhase.Acceptance))
             .ToListAsync(cancellationToken);

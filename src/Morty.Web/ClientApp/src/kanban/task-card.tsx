@@ -1,6 +1,8 @@
 import { createSortable, useDragDropContext, transformStyle } from '@thisbeyond/solid-dnd';
+import { Show } from 'solid-js';
 import { useKanbanContext } from './kanban-context';
 import type { Story } from '../types';
+import { pauseStory, startStory } from '../api/client';
 
 const PRIORITY_COLORS = {
   High: '#ef4444',
@@ -12,7 +14,7 @@ const PHASE_LABELS: Record<string, string> = {
   Pending: '待处理',
   RequirementsPlanning: '需求规划',
   AcceptancePlanning: '验收规划',
-  Coding: '开发中',
+  Executing: '执行中',
   Testing: '测试中',
   Acceptance: '验收中',
   Completed: '已完成',
@@ -27,16 +29,47 @@ export function TaskCard(props: TaskCardProps) {
   const kanban = useKanbanContext();
   const sortable = createSortable(props.story.id);
 
+  const handleCardClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    console.log('Task card clicked:', props.story.id);
+    kanban.openStoryDetail(props.story);
+  };
+
+  const handlePlayPause = async (e: MouseEvent) => {
+    console.log('Play button clicked, runningStatus:', props.story.runningStatus);
+    e.stopPropagation();
+    e.preventDefault();
+    try {
+      if (props.story.runningStatus === 'Paused') {
+        await startStory(props.story.id);
+      } else {
+        await pauseStory(props.story.id);
+      }
+      kanban.refreshStories();
+    } catch (err) {
+      console.error('Failed to toggle story:', err);
+    }
+  };
+
   return (
     <div
       ref={sortable.ref}
       classList={{
         'happy-kanban-task': true,
         'happy-kanban-task--dragging': sortable.isActiveDraggable,
+        'happy-kanban-task--paused': props.story.runningStatus === 'Paused',
+        'happy-kanban-task--running': props.story.runningStatus === 'Running',
+        'happy-kanban-task--pending': props.story.runningStatus === 'Pending',
       }}
       style={transformStyle(sortable.transform)}
-      {...sortable.dragActivators}
-      onClick={() => kanban.openStoryDetail(props.story)}
+      onClick={handleCardClick}
+      onMouseDown={(e) => {
+        // Allow click but prevent drag on the play button area
+        if ((e.target as HTMLElement).closest('.happy-kanban-task__actions')) {
+          e.stopPropagation();
+        }
+      }}
     >
       <div class="happy-kanban-task__body">
         <div
@@ -48,11 +81,26 @@ export function TaskCard(props: TaskCardProps) {
         <div class="happy-kanban-task__footer">
           <div class="happy-kanban-task__meta">
             <span class="happy-kanban-task__stat">{props.story.priority}</span>
+            <Show when={props.story.runningStatus !== 'Paused'}>
+              <span
+                class="happy-kanban-task__status-badge"
+                classList={{
+                  'happy-kanban-task__status-badge--running': props.story.runningStatus === 'Running',
+                  'happy-kanban-task__status-badge--pending': props.story.runningStatus === 'Pending',
+                }}
+              >
+                {props.story.runningStatus === 'Running' ? '运行中' : '排队中'}
+              </span>
+            </Show>
           </div>
-          <div class="happy-kanban-task__status">
-            <span class={`happy-kanban-task__phase ${props.story.isPaused ? 'paused' : 'running'}`}>
-              {PHASE_LABELS[props.story.phase] || props.story.phase}
-            </span>
+          <div class="happy-kanban-task__actions">
+            <button
+              class={`happy-kanban-task__play-btn ${props.story.runningStatus === 'Paused' ? '' : 'running'}`}
+              onClick={handlePlayPause}
+              title={props.story.runningStatus === 'Paused' ? '启动' : '暂停'}
+            >
+              {props.story.runningStatus === 'Paused' ? '▶' : '⏸'}
+            </button>
           </div>
         </div>
       </div>
