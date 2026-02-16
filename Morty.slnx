@@ -1,7 +1,3 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/Morty.Core/Morty.Core.csproj" />
-    <Project Path="src/Morty.Infrastructure/Morty.Infrastructure.csproj" />
-    <Project Path="src/Morty.Web/Morty.Web.csproj" />
-  </Folder>
+  <Project Path="src/Morty/Morty.csproj" />
 </Solution>
