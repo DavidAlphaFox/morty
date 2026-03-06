@@ -14,6 +14,9 @@ public class ZhipuProvider : ILlmProvider
 
     public IReadOnlyList<string> SupportedModels => new[]
     {
+        "glm-5",
+        "glm-4.7",
+        "glm-4.5-air",
         "glm-4",
         "glm-4-flash",
         "glm-4-plus",

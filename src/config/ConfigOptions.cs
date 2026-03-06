@@ -26,7 +26,7 @@ public class ProviderConfig
     public string Type { get; set; } = "zhipu";
 
     [JsonPropertyName("model")]
-    public string Model { get; set; } = "glm-4-plus";
+    public string Model { get; set; } = "glm-5";
 
     [JsonPropertyName("baseUrl")]
     public string? BaseUrl { get; set; }
