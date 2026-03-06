@@ -1,17 +1,40 @@
+// =============================================================================
+// 智谱 (Zhipu) LLM Provider
+// =============================================================================
+// API 文档: https://open.bigmodel.cn/doc
+// 支持模型: glm-5, glm-4.7, glm-4.5-air, glm-4, glm-4-flash, glm-4-plus, glm-4v-plus
+// =============================================================================
+
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 
 namespace Morty.LLM;
 
+/// <summary>
+/// 智谱 LLM Provider
+/// </summary>
 public class ZhipuProvider : ILlmProvider
 {
+    /// <summary>
+    /// HTTP 客户端
+    /// </summary>
     private readonly HttpClient _httpClient;
+
+    /// <summary>
+    /// API Key
+    /// </summary>
     private readonly string _apiKey;
+
+    /// <summary>
+    /// API 基础地址
+    /// </summary>
     private readonly string _baseUrl;
 
+    /// <inheritdoc/>
     public string Name => "zhipu";
 
+    /// <inheritdoc/>
     public IReadOnlyList<string> SupportedModels => new[]
     {
         "glm-5",
@@ -23,6 +46,11 @@ public class ZhipuProvider : ILlmProvider
         "glm-4v-plus"
     };
 
+    /// <summary>
+    /// 初始化智谱 Provider
+    /// </summary>
+    /// <param name="apiKey">API Key</param>
+    /// <param name="baseUrl">自定义 API 地址 (可选)</param>
     public ZhipuProvider(string apiKey, string? baseUrl = null)
     {
         _apiKey = apiKey;

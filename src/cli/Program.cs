@@ -1,3 +1,16 @@
+// =============================================================================
+// Morty CLI 入口
+// =============================================================================
+// 命令行界面入口点
+// 支持的命令:
+//   morty                  - 交互模式
+//   morty <prompt>         - 单次对话
+//   morty auth login <p>   - 登录
+//   morty auth list        - 列出已登录
+//   morty auth logout <p>  - 登出
+//   morty models [p]       - 列出模型
+// =============================================================================
+
 using System.Text.Json;
 using Morty.Auth;
 using Morty.Config;
@@ -5,21 +18,39 @@ using Morty.LLM;
 
 namespace Morty.CLI;
 
+/// <summary>
+/// 程序入口
+/// </summary>
 class Program
 {
+    /// <summary>
+    /// 凭证管理器 (延迟初始化)
+    /// </summary>
     private static AuthManager? _authManager;
+
+    /// <summary>
+    /// 配置加载器 (延迟初始化)
+    /// </summary>
     private static ConfigLoader? _configLoader;
 
+    /// <summary>
+    /// 主入口点
+    /// </summary>
+    /// <param name="args">命令行参数</param>
+    /// <returns>退出码</returns>
     static int Main(string[] args)
     {
+        // 创建日志目录
         var logDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "morty", "logs");
         Directory.CreateDirectory(logDir);
 
+        // 打印欢迎信息
         Console.WriteLine($"morty - AI Coding Assistant");
         Console.WriteLine();
 
+        // 无参数时进入交互模式
         if (args.Length == 0)
         {
             RunInteractive();

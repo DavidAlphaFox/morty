@@ -1,17 +1,40 @@
+// =============================================================================
+// 百炼 (Qianwen) LLM Provider
+// =============================================================================
+// API 文档: https://dashscope.aliyuncs.com/
+// 支持模型: qwen-turbo, qwen-plus, qwen-max, qwen-long, qwen2.5-coder, qwen2.5-vl
+// =============================================================================
+
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 
 namespace Morty.LLM;
 
+/// <summary>
+/// 百炼 (Qianwen) LLM Provider
+/// </summary>
 public class QianwenProvider : ILlmProvider
 {
+    /// <summary>
+    /// HTTP 客户端
+    /// </summary>
     private readonly HttpClient _httpClient;
+
+    /// <summary>
+    /// API Key
+    /// </summary>
     private readonly string _apiKey;
+
+    /// <summary>
+    /// API 基础地址
+    /// </summary>
     private readonly string _baseUrl;
 
+    /// <inheritdoc/>
     public string Name => "qianwen";
 
+    /// <inheritdoc/>
     public IReadOnlyList<string> SupportedModels => new[]
     {
         "qwen-turbo",
@@ -22,6 +45,11 @@ public class QianwenProvider : ILlmProvider
         "qwen2.5-vl"
     };
 
+    /// <summary>
+    /// 初始化百炼 Provider
+    /// </summary>
+    /// <param name="apiKey">API Key</param>
+    /// <param name="baseUrl">自定义 API 地址 (可选)</param>
     public QianwenProvider(string apiKey, string? baseUrl = null)
     {
         _apiKey = apiKey;

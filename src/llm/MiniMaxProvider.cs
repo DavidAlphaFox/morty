@@ -1,3 +1,11 @@
+// =============================================================================
+// MiniMax LLM Provider
+// =============================================================================
+// API 文档: https://platform.minimax.io/docs
+// 支持模型: MiniMax-M2, MiniMax-M2.1
+// 认证方式: HMAC-SHA256 签名
+// =============================================================================
+
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -5,20 +13,41 @@ using System.Text.Json;
 
 namespace Morty.LLM;
 
+/// <summary>
+/// MiniMax LLM Provider
+/// </summary>
 public class MiniMaxProvider : ILlmProvider
 {
+    /// <summary>
+    /// HTTP 客户端
+    /// </summary>
     private readonly HttpClient _httpClient;
+
+    /// <summary>
+    /// API Key
+    /// </summary>
     private readonly string _apiKey;
+
+    /// <summary>
+    /// API 基础地址
+    /// </summary>
     private readonly string _baseUrl;
 
+    /// <inheritdoc/>
     public string Name => "minimax";
 
+    /// <inheritdoc/>
     public IReadOnlyList<string> SupportedModels => new[]
     {
         "MiniMax-M2",
         "MiniMax-M2.1"
     };
 
+    /// <summary>
+    /// 初始化 MiniMax Provider
+    /// </summary>
+    /// <param name="apiKey">API Key</param>
+    /// <param name="baseUrl">自定义 API 地址 (可选)</param>
     public MiniMaxProvider(string apiKey, string? baseUrl = null)
     {
         _apiKey = apiKey;
