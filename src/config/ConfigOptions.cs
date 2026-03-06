@@ -46,6 +46,12 @@ public class MortyConfig
     /// </summary>
     [JsonPropertyName("tui")]
     public TuiConfig? Tui { get; set; }
+
+    /// <summary>
+    /// 权限配置
+    /// </summary>
+    [JsonPropertyName("permission")]
+    public PermissionConfig? Permission { get; set; }
 }
 
 /// <summary>
@@ -76,6 +82,12 @@ public class ProviderConfig
     /// </summary>
     [JsonPropertyName("models")]
     public List<string>? Models { get; set; }
+
+    /// <summary>
+    /// 自定义 HTTP 头 (可选)
+    /// </summary>
+    [JsonPropertyName("headers")]
+    public Dictionary<string, string>? Headers { get; set; }
 }
 
 /// <summary>
@@ -89,7 +101,7 @@ public class ToolsConfig
     [JsonPropertyName("enabled")]
     public List<string> Enabled { get; set; } = new()
     {
-        "read", "write", "edit", "bash", "grep", "find", "ls"
+        "read", "write", "edit", "bash", "grep", "glob", "ls"
     };
 
     /// <summary>
@@ -175,6 +187,48 @@ public class SessionConfig
     /// </summary>
     [JsonPropertyName("compactThreshold")]
     public double CompactThreshold { get; set; } = 0.8;
+}
+
+/// <summary>
+/// 权限配置
+/// </summary>
+public class PermissionConfig
+{
+    /// <summary>
+    /// 权限规则列表
+    /// </summary>
+    [JsonPropertyName("rules")]
+    public List<PermissionRuleConfig>? Rules { get; set; }
+
+    /// <summary>
+    /// 自动允许的权限类型 (如 ["read", "bash:low"])
+    /// </summary>
+    [JsonPropertyName("autoAllow")]
+    public List<string>? AutoAllow { get; set; }
+}
+
+/// <summary>
+/// 权限规则配置
+/// </summary>
+public class PermissionRuleConfig
+{
+    /// <summary>
+    /// 权限类型: read, edit, bash
+    /// </summary>
+    [JsonPropertyName("permission")]
+    public string Permission { get; set; } = "";
+
+    /// <summary>
+    /// 匹配模式: glob 路径或命令前缀
+    /// </summary>
+    [JsonPropertyName("pattern")]
+    public string Pattern { get; set; } = "*";
+
+    /// <summary>
+    /// 动作: allow, deny, ask
+    /// </summary>
+    [JsonPropertyName("action")]
+    public string Action { get; set; } = "ask";
 }
 
 /// <summary>

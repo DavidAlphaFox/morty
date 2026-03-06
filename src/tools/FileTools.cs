@@ -3,9 +3,12 @@
 // =============================================================================
 // 提供文件读取、写入、编辑功能
 // 包含路径安全检查，确保操作在允许的工作目录内
+// 参考 pi-mono 的 read/write/edit 工具:
+//   - 读取: 支持 offset/limit，输出带行号，超长自动截断
+//   - 编辑: 精确文本匹配替换，唯一性检查
 // =============================================================================
 
-using System.Diagnostics;
+using System.Text;
 
 namespace Morty.Tools;
 
@@ -14,15 +17,8 @@ namespace Morty.Tools;
 /// </summary>
 public class FileTools
 {
-    /// <summary>
-    /// 工作目录
-    /// </summary>
     private readonly string _workingDirectory;
 
-    /// <summary>
-    /// 初始化文件工具
-    /// </summary>
-    /// <param name="workingDirectory">工作目录</param>
     public FileTools(string workingDirectory)
     {
         _workingDirectory = Path.GetFullPath(workingDirectory);
@@ -31,67 +27,118 @@ public class FileTools
     /// <summary>
     /// 解析并验证文件路径
     /// </summary>
-    /// <param name="path">相对或绝对路径</param>
-    /// <returns>绝对路径</returns>
-    /// <exception cref="UnauthorizedAccessException">路径不在工作目录内</exception>
     private string ResolvePath(string path)
     {
         var fullPath = Path.GetFullPath(Path.Combine(_workingDirectory, path));
-        
-        // 安全检查: 确保路径在工作目录内
+
         if (!fullPath.StartsWith(_workingDirectory))
             throw new UnauthorizedAccessException($"路径不在工作目录内: {path}");
-        
+
         return fullPath;
     }
 
     /// <summary>
-    /// 读取文件内容
+    /// 读取文件内容 (支持 offset/limit，带行号输出，自动截断)
     /// </summary>
-    /// <param name="path">文件路径</param>
-    /// <returns>文件内容</returns>
-    public Task<string> Read(string path)
+    public async Task<string> Read(string path, int? offset = null, int? limit = null)
     {
         var fullPath = ResolvePath(path);
-        return File.ReadAllTextAsync(fullPath);
+        var content = await File.ReadAllTextAsync(fullPath);
+        var allLines = content.Split('\n');
+        var totalLines = allLines.Length;
+
+        // 计算起始行 (1-indexed to 0-indexed)
+        var startLine = offset.HasValue ? Math.Max(0, offset.Value - 1) : 0;
+        if (startLine >= allLines.Length)
+            throw new InvalidOperationException($"Offset {offset} is beyond end of file ({allLines.Length} lines total)");
+
+        // 应用 limit
+        string selectedContent;
+        int? userLimitedLines = null;
+        if (limit.HasValue)
+        {
+            var endLine = Math.Min(startLine + limit.Value, allLines.Length);
+            selectedContent = string.Join("\n", allLines.Skip(startLine).Take(endLine - startLine));
+            userLimitedLines = endLine - startLine;
+        }
+        else
+        {
+            selectedContent = string.Join("\n", allLines.Skip(startLine));
+        }
+
+        // 应用截断
+        var truncation = OutputTruncator.TruncateHead(selectedContent);
+        var startLineDisplay = startLine + 1;
+
+        // 添加行号
+        var outputLines = truncation.Content.Split('\n');
+        var sb = new StringBuilder();
+        for (var i = 0; i < outputLines.Length; i++)
+        {
+            var lineNum = startLineDisplay + i;
+            sb.AppendLine($"{lineNum,6}\t{outputLines[i]}");
+        }
+
+        var result = sb.ToString().TrimEnd();
+
+        // 添加截断提示
+        if (truncation.Truncated)
+        {
+            var endLineDisplay = startLineDisplay + truncation.OutputLines - 1;
+            var nextOffset = endLineDisplay + 1;
+            result += $"\n\n[Showing lines {startLineDisplay}-{endLineDisplay} of {totalLines}. Use offset={nextOffset} to continue.]";
+        }
+        else if (userLimitedLines.HasValue && startLine + userLimitedLines.Value < allLines.Length)
+        {
+            var remaining = allLines.Length - (startLine + userLimitedLines.Value);
+            var nextOffset = startLine + userLimitedLines.Value + 1;
+            result += $"\n\n[{remaining} more lines in file. Use offset={nextOffset} to continue.]";
+        }
+
+        return result;
     }
 
     /// <summary>
     /// 写入文件内容
     /// </summary>
-    /// <param name="path">文件路径</param>
-    /// <param name="content">文件内容</param>
-    /// <returns>操作结果</returns>
     public async Task<string> Write(string path, string content)
     {
         var fullPath = ResolvePath(path);
-        
-        // 确保目录存在
+
         var dir = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             Directory.CreateDirectory(dir);
 
         await File.WriteAllTextAsync(fullPath, content);
-        return $"已写入文件: {path}";
+        return $"Successfully wrote {content.Length} bytes to {path}";
     }
 
     /// <summary>
-    /// 编辑文件内容 (替换)
+    /// 编辑文件内容 (多策略匹配替换)
     /// </summary>
-    /// <param name="path">文件路径</param>
-    /// <param name="oldString">需要替换的原文</param>
-    /// <param name="newString">替换后的内容</param>
-    /// <returns>操作结果</returns>
-    /// <exception cref="InvalidOperationException">未找到需要替换的内容</exception>
     public async Task<string> Edit(string path, string oldString, string newString)
     {
-        var content = await Read(path);
+        var fullPath = ResolvePath(path);
+        var content = await File.ReadAllTextAsync(fullPath);
 
-        if (!content.Contains(oldString))
-            throw new InvalidOperationException("未找到需要替换的内容");
+        var result = EditStrategy.TryReplace(content, oldString, newString);
 
-        content = content.Replace(oldString, newString);
-        await Write(path, content);
-        return $"已编辑文件: {path}";
+        if (!result.Success)
+        {
+            // 找到最相似的片段提供提示
+            var (similar, similarity) = TextSimilarity.FindMostSimilar(content, oldString);
+            var hint = similarity > 0.5
+                ? $"\nClosest match (similarity {similarity:P0}):\n{similar}"
+                : "";
+            throw new InvalidOperationException(
+                $"Could not find matching text in {path}. The old text must match (including whitespace and newlines).{hint}");
+        }
+
+        await File.WriteAllTextAsync(fullPath, result.Content);
+
+        var strategyNote = result.Strategy != "Exact"
+            ? $" (matched via {result.Strategy})"
+            : "";
+        return $"Successfully replaced text in {path}.{strategyNote}";
     }
 }

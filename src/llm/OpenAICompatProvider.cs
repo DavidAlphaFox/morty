@@ -1,8 +1,8 @@
 // =============================================================================
-// 智谱 (Zhipu) LLM Provider
+// 通用 OpenAI 兼容 Provider
 // =============================================================================
-// API 文档: https://open.bigmodel.cn/doc
-// 支持模型: glm-5, glm-4.7, glm-4.5-air, glm-4, glm-4-flash, glm-4-plus, glm-4v-plus
+// 支持任何兼容 OpenAI Chat Completions API 的服务
+// 包括 OpenAI, DeepSeek, Ollama, vLLM 等
 // =============================================================================
 
 using System.Net.Http.Json;
@@ -15,9 +15,9 @@ using Microsoft.Extensions.AI;
 namespace Morty.LLM;
 
 /// <summary>
-/// 智谱 LLM Provider
+/// 通用 OpenAI 兼容 Provider
 /// </summary>
-public class ZhipuProvider : IChatClient
+public class OpenAICompatProvider : IChatClient
 {
     private readonly HttpClient _httpClient;
     private readonly string _baseUrl;
@@ -25,26 +25,27 @@ public class ZhipuProvider : IChatClient
 
     public ChatClientMetadata Metadata { get; }
 
-    public static IReadOnlyList<string> SupportedModels => new[]
+    public OpenAICompatProvider(
+        string apiKey,
+        string baseUrl,
+        string defaultModel = "gpt-4o",
+        Dictionary<string, string>? headers = null)
     {
-        "glm-5",
-        "glm-4.7",
-        "glm-4.5-air",
-        "glm-4",
-        "glm-4-flash",
-        "glm-4-plus",
-        "glm-4v-plus"
-    };
-
-    public ZhipuProvider(string apiKey, string? baseUrl = null, string? defaultModel = null)
-    {
-        _baseUrl = baseUrl ?? "https://open.bigmodel.cn/api/paas/v4";
-        _defaultModel = defaultModel ?? SupportedModels[0];
+        _baseUrl = baseUrl.TrimEnd('/');
+        _defaultModel = defaultModel;
 
         _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+        if (!string.IsNullOrEmpty(apiKey))
+            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
 
-        Metadata = new ChatClientMetadata("zhipu", new Uri(_baseUrl), _defaultModel);
+        // 自定义 headers
+        if (headers != null)
+        {
+            foreach (var (key, value) in headers)
+                _httpClient.DefaultRequestHeaders.TryAddWithoutValidation(key, value);
+        }
+
+        Metadata = new ChatClientMetadata("openai-compat", new Uri(_baseUrl), _defaultModel);
     }
 
     public async Task<ChatResponse> GetResponseAsync(
@@ -62,7 +63,8 @@ public class ZhipuProvider : IChatClient
 
         response.EnsureSuccessStatusCode();
 
-        var result = await response.Content.ReadFromJsonAsync<ZhipuResponse>(cancellationToken: cancellationToken);
+        var result = await response.Content.ReadFromJsonAsync<OpenAICompatResponse>(
+            cancellationToken: cancellationToken);
         return MapToChatResponse(result, model);
     }
 
@@ -94,7 +96,6 @@ public class ZhipuProvider : IChatClient
     {
         if (serviceKey is null && serviceType.IsInstanceOfType(this))
             return this;
-
         return null;
     }
 
@@ -103,12 +104,10 @@ public class ZhipuProvider : IChatClient
         _httpClient.Dispose();
     }
 
-    private static ChatResponse MapToChatResponse(ZhipuResponse? response, string model)
+    private static ChatResponse MapToChatResponse(OpenAICompatResponse? response, string model)
     {
-        if (response == null || response.Choices == null || response.Choices.Count == 0)
-        {
+        if (response?.Choices == null || response.Choices.Count == 0)
             return new ChatResponse(new ChatMessage(ChatRole.Assistant, "")) { ModelId = model };
-        }
 
         var choice = response.Choices.First();
         var message = OpenAISerializer.ParseAssistantMessage(
@@ -118,7 +117,7 @@ public class ZhipuProvider : IChatClient
         {
             ResponseId = response.Id,
             ModelId = model,
-            FinishReason = MapFinishReason(choice.FinishReason),
+            FinishReason = OpenAISerializer.MapFinishReason(choice.FinishReason),
             Usage = response.Usage != null ? new UsageDetails
             {
                 InputTokenCount = response.Usage.PromptTokens,
@@ -127,36 +126,33 @@ public class ZhipuProvider : IChatClient
             } : null
         };
     }
-
-    private static ChatFinishReason? MapFinishReason(string? reason) =>
-        OpenAISerializer.MapFinishReason(reason);
 }
 
-internal class ZhipuResponse
+internal class OpenAICompatResponse
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";
 
     [JsonPropertyName("choices")]
-    public List<ZhipuChoice>? Choices { get; set; }
+    public List<OpenAICompatChoice>? Choices { get; set; }
 
     [JsonPropertyName("usage")]
-    public ZhipuUsage? Usage { get; set; }
+    public OpenAICompatUsage? Usage { get; set; }
 }
 
-internal class ZhipuChoice
+internal class OpenAICompatChoice
 {
     [JsonPropertyName("index")]
     public int Index { get; set; }
 
     [JsonPropertyName("message")]
-    public ZhipuMessage? Message { get; set; }
+    public OpenAICompatMessage? Message { get; set; }
 
     [JsonPropertyName("finish_reason")]
     public string? FinishReason { get; set; }
 }
 
-internal class ZhipuMessage
+internal class OpenAICompatMessage
 {
     [JsonPropertyName("role")]
     public string Role { get; set; } = "";
@@ -168,7 +164,7 @@ internal class ZhipuMessage
     public List<OpenAIToolCall>? ToolCalls { get; set; }
 }
 
-internal class ZhipuUsage
+internal class OpenAICompatUsage
 {
     [JsonPropertyName("prompt_tokens")]
     public int PromptTokens { get; set; }
@@ -179,4 +175,3 @@ internal class ZhipuUsage
     [JsonPropertyName("total_tokens")]
     public int TotalTokens { get; set; }
 }
-

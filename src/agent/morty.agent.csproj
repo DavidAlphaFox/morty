@@ -2,7 +2,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\llm\morty.llm.csproj" />
+    <ProjectReference Include="..\tools\morty.tools.csproj" />
     <ProjectReference Include="..\config\morty.config.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.3.0" />
   </ItemGroup>
 
   <PropertyGroup>

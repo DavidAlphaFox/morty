@@ -1,11 +1,13 @@
 // =============================================================================
 // 上下文压缩器
 // =============================================================================
-// 当上下文接近 token 限制时，使用 LLM 总结旧消息
-// 保留关键信息如文件名、修改内容、决策等
+// 两阶段压缩:
+//   1. 裁剪旧工具输出 (保留最近 40K token 的工具结果)
+//   2. LLM 摘要 (专用压缩 prompt，保留文件路径/代码变更/决策等)
 // =============================================================================
 
 using System.Text;
+using Microsoft.Extensions.AI;
 using Morty.LLM;
 
 namespace Morty.Agent;
@@ -15,66 +17,107 @@ namespace Morty.Agent;
 /// </summary>
 public class ContextCompactor
 {
-    /// <summary>
-    /// 默认最大 Token 数
-    /// </summary>
-    private const int DefaultMaxTokens = 128000;
+    private const string CompactionSystemPrompt = """
+        You are summarizing a coding conversation for context compression.
+        Preserve ALL of the following:
+        - File paths that were read, edited, or created
+        - Code changes made (what was changed and why)
+        - Decisions and rationale
+        - Current task status and next steps
+        - Error messages and their resolutions
+        - User preferences and requirements mentioned
+
+        Be concise but complete. Use bullet points. Do not lose any actionable information.
+        """;
 
     /// <summary>
-    /// 压缩上下文
+    /// 压缩上下文 — 两阶段策略
     /// </summary>
-    /// <param name="history">消息历史</param>
-    /// <param name="maxTokens">最大 Token 数</param>
-    /// <param name="provider">LLM Provider</param>
-    /// <param name="ct">取消令牌</param>
-    /// <returns>压缩后的消息列表</returns>
     public async Task<List<ChatMessageContent>> CompressAsync(
         List<ChatMessageContent> history,
         int maxTokens,
-        ILlmProvider provider,
+        IChatClient client,
         CancellationToken ct = default)
     {
-        // 估算当前 Token 数
         var currentTokens = EstimateTokens(history);
 
-        // 未超过阈值 (80%)，直接返回
         if (currentTokens < maxTokens * 0.8)
             return history;
 
-        // 分离消息: 保留最近的和可压缩的
-        var (keep, compress) = SplitMessages(history);
+        // 阶段 1: 裁剪旧工具输出
+        var pruned = PruneToolOutputs(history);
+        currentTokens = EstimateTokens(pruned);
+        if (currentTokens < maxTokens * 0.8)
+            return pruned;
 
-        // 没有可压缩的消息
+        // 阶段 2: LLM 摘要
+        var (keep, compress) = SplitMessages(pruned);
         if (compress.Count == 0)
             return keep;
 
-        // 使用 LLM 总结
-        var summary = await SummarizeAsync(compress, provider, ct);
+        var summary = await SummarizeAsync(compress, client, ct);
 
-        // 添加摘要消息
-        keep.Add(new ChatMessageContent
+        // 摘要插入到开头
+        var result = new List<ChatMessageContent>
         {
-            Role = "system",
-            Content = $"[对话摘要] {summary}"
-        });
-
-        return keep;
+            new()
+            {
+                Role = "system",
+                Content = $"[Conversation summary]\n{summary}"
+            }
+        };
+        result.AddRange(keep);
+        return result;
     }
 
     /// <summary>
-    /// 估算 Token 数量
+    /// 裁剪旧的工具输出，保留最近的工具结果
     /// </summary>
-    /// <param name="message">消息</param>
-    /// <returns>估算的 Token 数</returns>
+    public List<ChatMessageContent> PruneToolOutputs(
+        List<ChatMessageContent> messages, int keepRecentToolTokens = 40000)
+    {
+        // 从后向前扫描，标记哪些工具输出需要裁剪
+        var toolTokensFromEnd = 0;
+        var shouldPrune = new bool[messages.Count];
+
+        for (var i = messages.Count - 1; i >= 0; i--)
+        {
+            if (messages[i].Role != "tool") continue;
+
+            var tokens = EstimateTokens(messages[i]);
+            toolTokensFromEnd += tokens;
+
+            if (toolTokensFromEnd > keepRecentToolTokens)
+                shouldPrune[i] = true;
+        }
+
+        var result = new List<ChatMessageContent>();
+        for (var i = 0; i < messages.Count; i++)
+        {
+            if (shouldPrune[i])
+            {
+                result.Add(new ChatMessageContent
+                {
+                    Role = "tool",
+                    Content = "[Output compacted]"
+                });
+            }
+            else
+            {
+                result.Add(messages[i]);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 估算单条消息的 Token 数量
+    /// </summary>
     public int EstimateTokens(ChatMessageContent message)
     {
-        var text = message.Content;
-        
-        // 简单估算: 中文字符 ≈ 2 tokens, 英文 ≈ 1.3 tokens
-        var chineseChars = text.Count(c => IsChinese(c));
-        var otherChars = text.Length - chineseChars;
-
-        return chineseChars * 2 + (int)(otherChars * 1.3);
+        var text = message.Content ?? "";
+        return EstimateTokensFromText(text);
     }
 
     /// <summary>
@@ -82,32 +125,34 @@ public class ContextCompactor
     /// </summary>
     public int EstimateTokens(IEnumerable<ChatMessageContent> history)
     {
-        return history.Sum(EstimateTokens);
+        return history.Sum(m => EstimateTokens(m) + 4); // +4 for message format overhead
     }
 
     /// <summary>
-    /// 判断是否为中文字符
+    /// 从文本估算 token 数
     /// </summary>
-    private static bool IsChinese(char c)
+    private static int EstimateTokensFromText(string text)
     {
-        return c >= 0x4E00 && c <= 0x9FFF;
+        if (string.IsNullOrEmpty(text)) return 0;
+
+        // 中文字符 ≈ 2 tokens, 英文/代码 ≈ 1.3 tokens per char
+        var chineseChars = text.Count(c => c >= 0x4E00 && c <= 0x9FFF);
+        var otherChars = text.Length - chineseChars;
+        return chineseChars * 2 + (int)(otherChars / 3.5); // ~3.5 chars per token for English
     }
 
     /// <summary>
-    /// 分离消息
+    /// 分离消息 — 保留最近 N 条，其余可压缩
     /// </summary>
-    /// <param name="history">完整历史</param>
-    /// <returns>(保留的消息, 可压缩的消息)</returns>
-    private (List<ChatMessageContent> keep, List<ChatMessageContent> compress) SplitMessages(
+    private static (List<ChatMessageContent> keep, List<ChatMessageContent> compress) SplitMessages(
         List<ChatMessageContent> history)
     {
         var keep = new List<ChatMessageContent>();
         var compress = new List<ChatMessageContent>();
 
-        // 保留最近 20 条消息
         const int keepCount = 20;
 
-        for (int i = 0; i < history.Count; i++)
+        for (var i = 0; i < history.Count; i++)
         {
             if (i >= history.Count - keepCount)
                 keep.Add(history[i]);
@@ -115,59 +160,56 @@ public class ContextCompactor
                 compress.Add(history[i]);
         }
 
-        // 工具结果必须保留
-        keep.AddRange(history.Where(m => m.Role == "tool"));
-
         return (keep, compress);
     }
 
     /// <summary>
     /// 使用 LLM 总结消息
     /// </summary>
-    private async Task<string> SummarizeAsync(
+    private static async Task<string> SummarizeAsync(
         List<ChatMessageContent> messages,
-        ILlmProvider provider,
+        IChatClient client,
         CancellationToken ct)
     {
         var prompt = BuildCompressionPrompt(messages);
 
-        var request = new ChatRequest
+        var chatMessages = new List<ChatMessage>
         {
-            Model = provider.SupportedModels.First(),
-            Messages = new List<ChatMessage>
-            {
-                new() { Role = "system", Content = "你是一个专业的代码助手。请简洁总结以下对话，保留关键信息如文件名、修改内容、决策等。" },
-                new() { Role = "user", Content = prompt }
-            },
-            MaxTokens = 2000
+            new(ChatRole.System, CompactionSystemPrompt),
+            new(ChatRole.User, prompt)
         };
 
-        var response = await provider.ChatAsync(request, ct);
-        return response.Content;
+        var options = new ChatOptions { MaxOutputTokens = 2000 };
+        var response = await client.GetResponseAsync(chatMessages, options, ct);
+        return response.Text ?? "";
     }
 
     /// <summary>
     /// 构建压缩提示
     /// </summary>
-    /// <param name="messages">消息列表</param>
-    /// <returns>提示文本</returns>
-    public string BuildCompressionPrompt(List<ChatMessageContent> messages)
+    private static string BuildCompressionPrompt(List<ChatMessageContent> messages)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("请简洁总结以下对话历史：");
+        sb.AppendLine("Summarize the following conversation history:");
         sb.AppendLine();
 
         foreach (var msg in messages)
         {
             var role = msg.Role switch
             {
-                "user" => "用户",
-                "assistant" => "助手",
-                "tool" => "工具",
+                "user" => "User",
+                "assistant" => "Assistant",
+                "tool" => "Tool",
+                "system" => "System",
                 _ => msg.Role
             };
 
-            sb.AppendLine($"[{role}]: {msg.Content}");
+            var content = msg.Content ?? "";
+            // 截断过长的单条消息
+            if (content.Length > 2000)
+                content = content[..2000] + "\n[truncated]";
+
+            sb.AppendLine($"[{role}]: {content}");
             sb.AppendLine();
         }
 

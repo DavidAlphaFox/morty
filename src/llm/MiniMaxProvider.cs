@@ -7,81 +7,68 @@
 // =============================================================================
 
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.Extensions.AI;
 
 namespace Morty.LLM;
 
 /// <summary>
 /// MiniMax LLM Provider
 /// </summary>
-public class MiniMaxProvider : ILlmProvider
+public class MiniMaxProvider : IChatClient
 {
-    /// <summary>
-    /// HTTP 客户端
-    /// </summary>
     private readonly HttpClient _httpClient;
-
-    /// <summary>
-    /// API Key
-    /// </summary>
     private readonly string _apiKey;
-
-    /// <summary>
-    /// API 基础地址
-    /// </summary>
     private readonly string _baseUrl;
+    private readonly string _defaultModel;
 
-    /// <inheritdoc/>
-    public string Name => "minimax";
+    public ChatClientMetadata Metadata { get; }
 
-    /// <inheritdoc/>
-    public IReadOnlyList<string> SupportedModels => new[]
+    public static IReadOnlyList<string> SupportedModels => new[]
     {
         "MiniMax-M2",
         "MiniMax-M2.1"
     };
 
-    /// <summary>
-    /// 初始化 MiniMax Provider
-    /// </summary>
-    /// <param name="apiKey">API Key</param>
-    /// <param name="baseUrl">自定义 API 地址 (可选)</param>
-    public MiniMaxProvider(string apiKey, string? baseUrl = null)
+    public MiniMaxProvider(string apiKey, string? baseUrl = null, string? defaultModel = null)
     {
         _apiKey = apiKey;
         _baseUrl = baseUrl ?? "https://api.minimax.io/v1";
+        _defaultModel = defaultModel ?? SupportedModels[0];
 
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Add("X-Minimax-Api-Version", "2024-05-01");
+
+        Metadata = new ChatClientMetadata("minimax", new Uri(_baseUrl), _defaultModel);
     }
 
-    public async Task<ChatResponse> ChatAsync(ChatRequest request, CancellationToken ct = default)
+    public async Task<ChatResponse> GetResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        CancellationToken cancellationToken = default)
     {
-        var payload = new
-        {
-            model = request.Model,
-            messages = request.Messages,
-            temperature = request.Temperature,
-            max_tokens = request.MaxTokens
-        };
+        var model = options?.ModelId ?? _defaultModel;
+        var payload = OpenAISerializer.BuildPayload(model, messages, options);
 
-        var response = await SendRequestAsync("POST", "/chat/completions", payload, ct);
+        var response = await SendRequestAsync("POST", "/chat/completions", payload, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        var result = await response.Content.ReadFromJsonAsync<MiniMaxResponse>(cancellationToken: ct);
-        return MapToChatResponse(result);
+        var result = await response.Content.ReadFromJsonAsync<MiniMaxResponse>(cancellationToken: cancellationToken);
+        return MapToChatResponse(result, model);
     }
 
-    public async IAsyncEnumerable<string> StreamChatAsync(ChatRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var payload = new
-        {
-            model = request.Model,
-            messages = request.Messages,
-            stream = true
-        };
+        var model = options?.ModelId ?? _defaultModel;
+        var payload = OpenAISerializer.BuildPayload(model, messages, options);
+        payload["stream"] = true;
 
         var content = new StringContent(
             JsonSerializer.Serialize(payload),
@@ -91,31 +78,24 @@ public class MiniMaxProvider : ILlmProvider
         var response = await _httpClient.PostAsync(
             $"{_baseUrl}/chat/completions",
             content,
-            ct);
+            cancellationToken);
 
-        using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var reader = new StreamReader(stream);
-
-        while (!reader.EndOfStream)
-        {
-            var line = await reader.ReadLineAsync(ct);
-            if (line?.StartsWith("data: ") == true)
-            {
-                var data = line[6..];
-                if (data == "[DONE]") yield break;
-
-                var chunk = JsonSerializer.Deserialize<MiniMaxStreamChunk>(data);
-                if (chunk?.Choices?.First()?.Delta?.Content is { } text)
-                {
-                    yield return text;
-                }
-            }
-        }
+        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await foreach (var update in OpenAISerializer.ParseStreamAsync(stream, model, cancellationToken))
+            yield return update;
     }
 
-    public Task<ChatResponse> ChatWithToolsAsync(ChatRequest request, IList<AgentTool> tools, CancellationToken ct = default)
+    public object? GetService(Type serviceType, object? serviceKey = null)
     {
-        throw new NotImplementedException();
+        if (serviceKey is null && serviceType.IsInstanceOfType(this))
+            return this;
+
+        return null;
+    }
+
+    public void Dispose()
+    {
+        _httpClient.Dispose();
     }
 
     private async Task<HttpResponseMessage> SendRequestAsync(string method, string endpoint, object? body, CancellationToken ct = default)
@@ -144,71 +124,80 @@ public class MiniMaxProvider : ILlmProvider
         return Convert.ToBase64String(hash);
     }
 
-    private static ChatResponse MapToChatResponse(MiniMaxResponse? response)
+    private static ChatResponse MapToChatResponse(MiniMaxResponse? response, string model)
     {
         if (response == null || response.Choices == null || response.Choices.Count == 0)
         {
-            return new ChatResponse { Content = "" };
+            return new ChatResponse(new ChatMessage(ChatRole.Assistant, "")) { ModelId = model };
         }
 
         var choice = response.Choices.First();
-        return new ChatResponse
+        var message = OpenAISerializer.ParseAssistantMessage(
+            choice.Message?.Content, choice.Message?.ToolCalls);
+
+        return new ChatResponse(message)
         {
-            Content = choice.Message?.Content ?? "",
-            Usage = response.Usage != null ? new Usage
+            ResponseId = response.Id,
+            ModelId = model,
+            FinishReason = MapFinishReason(choice.FinishReason),
+            Usage = response.Usage != null ? new UsageDetails
             {
-                PromptTokens = response.Usage.PromptTokens,
-                CompletionTokens = response.Usage.CompletionTokens,
-                TotalTokens = response.Usage.TotalTokens
-            } : null,
-            FinishReason = choice.FinishReason
+                InputTokenCount = response.Usage.PromptTokens,
+                OutputTokenCount = response.Usage.CompletionTokens,
+                TotalTokenCount = response.Usage.TotalTokens
+            } : null
         };
     }
+
+    private static ChatFinishReason? MapFinishReason(string? reason) =>
+        OpenAISerializer.MapFinishReason(reason);
 }
 
 internal class MiniMaxResponse
 {
+    [JsonPropertyName("id")]
     public string Id { get; set; } = "";
-    public string Object { get; set; } = "";
-    public int Created { get; set; }
-    public string Model { get; set; } = "";
+
+    [JsonPropertyName("choices")]
     public List<MiniMaxChoice>? Choices { get; set; }
+
+    [JsonPropertyName("usage")]
     public MiniMaxUsage? Usage { get; set; }
 }
 
 internal class MiniMaxChoice
 {
+    [JsonPropertyName("index")]
     public int Index { get; set; }
+
+    [JsonPropertyName("message")]
     public MiniMaxMessage? Message { get; set; }
+
+    [JsonPropertyName("finish_reason")]
     public string? FinishReason { get; set; }
 }
 
 internal class MiniMaxMessage
 {
+    [JsonPropertyName("role")]
     public string Role { get; set; } = "";
-    public string Content { get; set; } = "";
+
+    [JsonPropertyName("content")]
+    public string? Content { get; set; }
+
+    [JsonPropertyName("tool_calls")]
+    public List<OpenAIToolCall>? ToolCalls { get; set; }
 }
 
 internal class MiniMaxUsage
 {
+    [JsonPropertyName("prompt_tokens")]
     public int PromptTokens { get; set; }
+
+    [JsonPropertyName("completion_tokens")]
     public int CompletionTokens { get; set; }
+
+    [JsonPropertyName("total_tokens")]
     public int TotalTokens { get; set; }
 }
 
-internal class MiniMaxStreamChunk
-{
-    public List<MiniMaxStreamChoice>? Choices { get; set; }
-}
-
-internal class MiniMaxStreamChoice
-{
-    public int Index { get; set; }
-    public MiniMaxStreamDelta? Delta { get; set; }
-    public string? FinishReason { get; set; }
-}
-
-internal class MiniMaxStreamDelta
-{
-    public string Content { get; set; } = "";
-}
