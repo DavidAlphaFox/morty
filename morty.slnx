@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/agent/">
+    <Project Path="src/agent/morty.agent.csproj" />
+  </Folder>
+  <Folder Name="/src/auth/">
+    <Project Path="src/auth/morty.auth.csproj" />
+  </Folder>
+  <Folder Name="/src/cli/">
+    <Project Path="src/cli/morty.cli.csproj" />
+  </Folder>
+  <Folder Name="/src/config/">
+    <Project Path="src/config/morty.config.csproj" />
+  </Folder>
+  <Folder Name="/src/llm/">
+    <Project Path="src/llm/morty.llm.csproj" />
+  </Folder>
+  <Folder Name="/src/tools/">
+    <Project Path="src/tools/morty.tools.csproj" />
+  </Folder>
+</Solution>
