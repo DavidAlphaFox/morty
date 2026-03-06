@@ -51,3 +51,17 @@ public class AgentTool
     public string Description { get; set; } = "";
     public object? Parameters { get; set; }
 }
+
+public class ChatMessageContent
+{
+    public string Role { get; set; } = "";
+    public string Content { get; set; } = "";
+    public List<AgentTool>? ToolCalls { get; set; }
+    public List<ToolResult>? ToolResults { get; set; }
+}
+
+public class ToolResult
+{
+    public string ToolCallId { get; set; } = "";
+    public string Result { get; set; } = "";
+}
