@@ -15,7 +15,7 @@ public class ConfigLoader
         _configPaths = new[]
         {
             Path.Combine(configDir, "morty.json"),
-            Path.Combine(Environment.CurrentDirectory, ".morty.json")
+            Path.Combine(Environment.CurrentDirectory, ".morty")
         };
 
         _jsonOptions = new JsonSerializerOptions
