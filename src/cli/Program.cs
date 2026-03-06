@@ -1,10 +1,15 @@
-using Serilog;
-using Serilog.Sinks.File;
+using System.Text.Json;
+using Morty.Auth;
+using Morty.Config;
+using Morty.LLM;
 
 namespace Morty.CLI;
 
 class Program
 {
+    private static AuthManager? _authManager;
+    private static ConfigLoader? _configLoader;
+
     static int Main(string[] args)
     {
         var logDir = Path.Combine(
@@ -12,55 +17,154 @@ class Program
             "morty", "logs");
         Directory.CreateDirectory(logDir);
 
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Debug()
-            .WriteTo.Console(outputTemplate:
-                "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-            .WriteTo.File(Path.Combine(logDir, "morty-.log"),
-                rollingInterval: RollingInterval.Day,
-                retainedFileCountLimit: 7)
-            .CreateLogger();
+        Console.WriteLine($"morty - AI Coding Assistant");
+        Console.WriteLine();
 
-        Log.Information("morty starting...");
+        if (args.Length == 0)
+        {
+            RunInteractive();
+            return 0;
+        }
+
+        var command = args[0];
 
         try
         {
-            if (args.Length == 0)
+            return command switch
             {
-                RunInteractive();
-            }
-            else if (args[0] == "--help" || args[0] == "-h")
-            {
-                PrintHelp();
-            }
-            else
-            {
-                var prompt = string.Join(" ", args);
-                RunOnce(prompt);
-            }
-
-            return 0;
+                "auth" => HandleAuth(args[1..]),
+                "models" => HandleModels(args[1..]),
+                "session" => HandleSession(args[1..]),
+                _ => RunPrompt(string.Join(" ", args))
+            };
         }
         catch (Exception ex)
         {
-            Log.Fatal(ex, "Application terminated unexpectedly");
+            Console.Error.WriteLine($"Error: {ex.Message}");
             return 1;
         }
-        finally
+    }
+
+    static int HandleAuth(string[] args)
+    {
+        if (args.Length == 0)
         {
-            Log.Information("morty shutting down");
-            Log.CloseAndFlush();
+            Console.WriteLine("Usage: morty auth <login|list|logout> [provider]");
+            return 0;
         }
+
+        _authManager = new AuthManager();
+
+        return args[0] switch
+        {
+            "login" => AuthLogin(args[1..]),
+            "list" => AuthList(),
+            "logout" => AuthLogout(args[1..]),
+            _ => HandleAuth(Array.Empty<string>())
+        };
+    }
+
+    static int AuthLogin(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.WriteLine("Usage: morty auth login <provider>");
+            return 0;
+        }
+
+        var provider = args[0];
+        Console.Write($"API Key for {provider}: ");
+        var key = Console.ReadLine();
+
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            Console.WriteLine("Error: API key is required");
+            return 1;
+        }
+
+        _authManager!.LoginAsync(provider, key).Wait();
+        Console.WriteLine($"Logged in to {provider}");
+        return 0;
+    }
+
+    static int AuthList()
+    {
+        var providers = _authManager!.ListProviders().ToList();
+
+        if (providers.Count == 0)
+        {
+            Console.WriteLine("No providers logged in");
+            return 0;
+        }
+
+        Console.WriteLine("Logged in providers:");
+        foreach (var p in providers)
+        {
+            Console.WriteLine($"  - {p}");
+        }
+        return 0;
+    }
+
+    static int AuthLogout(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.WriteLine("Usage: morty auth logout <provider>");
+            return 0;
+        }
+
+        var provider = args[0];
+        _authManager!.LogoutAsync(provider).Wait();
+        Console.WriteLine($"Logged out from {provider}");
+        return 0;
+    }
+
+    static int HandleModels(string[] args)
+    {
+        var provider = args.Length > 0 ? args[0] : null;
+
+        var models = provider?.ToLower() switch
+        {
+            "zhipu" => new[] { "glm-4", "glm-4-flash", "glm-4-plus", "glm-4v-plus" },
+            "minimax" => new[] { "MiniMax-M2", "MiniMax-M2.1" },
+            "qianwen" => new[] { "qwen-turbo", "qwen-plus", "qwen-max", "qwen-long", "qwen2.5-vl" },
+            _ => new[]
+            {
+                "glm-4", "glm-4-flash", "glm-4-plus",
+                "MiniMax-M2", "MiniMax-M2.1",
+                "qwen-turbo", "qwen-plus", "qwen-max"
+            }
+        };
+
+        foreach (var m in models)
+        {
+            Console.WriteLine(m);
+        }
+        return 0;
+    }
+
+    static int HandleSession(string[] args)
+    {
+        Console.WriteLine("Session management not yet implemented");
+        return 0;
+    }
+
+    static int RunPrompt(string prompt)
+    {
+        Console.WriteLine($"Prompt: {prompt}");
+        Console.WriteLine("(TUI not yet integrated)");
+        return 0;
     }
 
     static void RunInteractive()
     {
-        Console.WriteLine("morty interactive mode");
-        Console.WriteLine("Type 'quit' to exit");
+        Console.WriteLine("Interactive mode");
+        Console.WriteLine("Type 'quit' to exit, 'help' for commands");
+        Console.WriteLine();
 
         while (true)
         {
-            Console.Write("\n> ");
+            Console.Write("> ");
             var input = Console.ReadLine();
 
             if (string.IsNullOrWhiteSpace(input))
@@ -69,28 +173,18 @@ class Program
             if (input.ToLower() == "quit" || input.ToLower() == "exit")
                 break;
 
+            if (input.ToLower() == "help")
+            {
+                Console.WriteLine(@"Commands:
+  morty auth login <provider>  - Login to a provider
+  morty auth list             - List logged in providers
+  morty auth logout <provider> - Logout from a provider
+  morty models [provider]     - List available models
+  quit                        - Exit");
+                continue;
+            }
+
             Console.WriteLine($"[Echo] {input}");
         }
-    }
-
-    static void RunOnce(string prompt)
-    {
-        Console.WriteLine($"Prompt: {prompt}");
-    }
-
-    static void PrintHelp()
-    {
-        Console.WriteLine(@"morty - AI Coding Assistant
-
-Usage:
-  morty                  Start interactive mode
-  morty <prompt>        Run a single prompt
-  morty --help, -h      Show this help
-
-Examples:
-  morty                  # Interactive mode
-  morty Hello world      # Single prompt
-  morty ""Hello world"" # Single prompt with spaces
-");
     }
 }
