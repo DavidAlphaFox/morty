@@ -31,12 +31,13 @@ public static class AgentModeConfig
     {
         AgentMode.Build => new()
         {
-            "read", "write", "edit", "bash", "grep", "glob", "ls",
-            "task", "batch", "webfetch"
+            "read", "write", "edit", "apply_patch", "bash", "grep", "glob", "ls",
+            "task", "batch", "webfetch", "todoread", "todowrite", "question"
         },
         AgentMode.Plan => new()
         {
-            "read", "grep", "glob", "ls", "bash", "webfetch"
+            "read", "grep", "glob", "ls", "bash", "webfetch",
+            "todoread", "todowrite", "question", "plan_exit"
         },
         _ => throw new ArgumentOutOfRangeException(nameof(mode))
     };

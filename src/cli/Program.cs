@@ -306,12 +306,22 @@ class Program
         var permissionChecker = new PermissionChecker(permissionRules, AskUserPermission);
         agent.PermissionChecker = permissionChecker;
 
+        // Todo 列表 (会话级)
+        var todoList = new TodoList();
+
         // 工具集 (plan 模式只有只读工具)
         var toolsConfig = config.Tools ?? new ToolsConfig();
         if (mode == AgentMode.Plan)
             toolsConfig = new ToolsConfig { Enabled = AgentModeConfig.GetTools(AgentMode.Plan), Bash = config.Tools?.Bash };
 
-        var tools = ToolRegistry.CreateAllTools(cwd, toolsConfig, permissionChecker);
+        // plan_exit 回调
+        Func<Task<string>>? planExitCallback = mode == AgentMode.Plan
+            ? () => HandlePlanExit()
+            : null;
+
+        var tools = ToolRegistry.CreateAllTools(
+            cwd, toolsConfig, permissionChecker,
+            todoList, AskUserQuestion, planExitCallback);
         foreach (var tool in tools)
             agent.RegisterTool(tool);
 
@@ -569,6 +579,85 @@ class Program
             _ => PermissionAction.Deny
         };
         return Task.FromResult(action);
+    }
+
+    private static Task<List<List<string>>> AskUserQuestion(QuestionRequest request)
+    {
+        var allAnswers = new List<List<string>>();
+
+        foreach (var q in request.Questions)
+        {
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"  {q.Question}");
+            Console.ResetColor();
+
+            for (var i = 0; i < q.Options.Count; i++)
+            {
+                var opt = q.Options[i];
+                Console.Write($"    {i + 1}) {opt.Label}");
+                if (!string.IsNullOrEmpty(opt.Description))
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.Write($" — {opt.Description}");
+                    Console.ResetColor();
+                }
+                Console.WriteLine();
+            }
+
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine(q.Multiple
+                ? "  (Enter numbers separated by commas, or type a custom answer)"
+                : "  (Enter a number, or type a custom answer)");
+            Console.ResetColor();
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Write("  ? ");
+            Console.ResetColor();
+
+            var input = Console.ReadLine()?.Trim() ?? "";
+            var answers = new List<string>();
+
+            if (q.Multiple)
+            {
+                foreach (var part in input.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (int.TryParse(part, out var idx) && idx >= 1 && idx <= q.Options.Count)
+                        answers.Add(q.Options[idx - 1].Label);
+                    else
+                        answers.Add(part);
+                }
+            }
+            else
+            {
+                if (int.TryParse(input, out var idx) && idx >= 1 && idx <= q.Options.Count)
+                    answers.Add(q.Options[idx - 1].Label);
+                else if (!string.IsNullOrEmpty(input))
+                    answers.Add(input);
+                else if (q.Options.Count > 0)
+                    answers.Add(q.Options[0].Label); // default to first
+            }
+
+            allAnswers.Add(answers);
+        }
+
+        Console.WriteLine();
+        return Task.FromResult(allAnswers);
+    }
+
+    private static Task<string> HandlePlanExit()
+    {
+        Console.WriteLine();
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.Write("  Switch to build mode and start implementing? ");
+        Console.ResetColor();
+        Console.Write("[y/N] ");
+
+        var input = Console.ReadLine()?.Trim().ToLower();
+        if (input is "y" or "yes")
+            return Task.FromResult("User approved switching to build mode. The plan is ready for implementation.");
+
+        return Task.FromResult("User chose to stay in plan mode. Continue refining the plan.");
     }
 
     private static List<PermissionRule>? BuildPermissionRules(PermissionConfig? config)

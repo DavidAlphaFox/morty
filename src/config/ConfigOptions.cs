@@ -101,7 +101,8 @@ public class ToolsConfig
     [JsonPropertyName("enabled")]
     public List<string> Enabled { get; set; } = new()
     {
-        "read", "write", "edit", "bash", "grep", "glob", "ls"
+        "read", "write", "edit", "apply_patch", "bash", "grep", "glob", "ls",
+        "todoread", "todowrite", "question"
     };
 
     /// <summary>

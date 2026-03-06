@@ -20,12 +20,19 @@ public static class ToolRegistry
     /// <summary>
     /// 创建所有可用工具
     /// </summary>
-    public static List<AIFunction> CreateAllTools(string workingDirectory, ToolsConfig? config = null, PermissionChecker? permissionChecker = null)
+    public static List<AIFunction> CreateAllTools(
+        string workingDirectory,
+        ToolsConfig? config = null,
+        PermissionChecker? permissionChecker = null,
+        TodoList? todoList = null,
+        Func<QuestionRequest, Task<List<List<string>>>>? questionCallback = null,
+        Func<Task<string>>? planExitCallback = null)
     {
         var tools = new List<AIFunction>();
         var enabled = config?.Enabled ?? new List<string> { "read", "write", "edit", "bash", "grep", "glob", "ls" };
 
         var fileTools = new FileTools(workingDirectory);
+        var patchTool = new PatchTool(workingDirectory);
         var systemTools = new SystemTools(
             workingDirectory,
             config?.Bash?.AllowedCommands,
@@ -132,6 +139,62 @@ public static class ToolRegistry
             }
         }
 
+        // apply_patch 工具
+        if (enabled.Contains("apply_patch"))
+            tools.Add(AIFunctionFactory.Create(
+                ([Description("The full patch text describing all changes")] string patchText) =>
+                    patchTool.ApplyAsync(patchText),
+                "apply_patch",
+                "Apply a patch to add, update, delete, or move files. " +
+                "Format: *** Begin Patch / *** End Patch envelope with " +
+                "*** Add File: <path>, *** Delete File: <path>, *** Update File: <path> sections. " +
+                "Update chunks use @@ context, - removed, + added, (space) unchanged line prefixes."));
+
+        // todoread 工具
+        if (enabled.Contains("todoread") && todoList != null)
+            tools.Add(AIFunctionFactory.Create(
+                () => todoList.Read(),
+                "todoread",
+                "Read the current todo list. Use proactively: at start of conversations, before new tasks, " +
+                "after completing tasks, or when uncertain about next steps. Takes no parameters."));
+
+        // todowrite 工具
+        if (enabled.Contains("todowrite") && todoList != null)
+            tools.Add(AIFunctionFactory.Create(
+                ([Description("JSON array of todo items: [{\"content\":\"...\",\"status\":\"pending|in_progress|completed|cancelled\",\"priority\":\"high|medium|low\"}, ...]")]
+                 string todos) =>
+                    todoList.Write(todos),
+                "todowrite",
+                "Create or update the todo list. Use for complex multi-step tasks (3+ steps). " +
+                "States: pending, in_progress (limit ONE at a time), completed, cancelled. " +
+                "Mark tasks complete immediately after finishing. Replace the entire list each call."));
+
+        // question 工具
+        if (enabled.Contains("question") && questionCallback != null)
+        {
+            var questionTool = new QuestionTool(questionCallback);
+            tools.Add(AIFunctionFactory.Create(
+                ([Description("JSON array of questions: [{\"question\":\"...\",\"options\":[{\"label\":\"...\",\"description\":\"...\"}],\"multiple\":false}, ...]")]
+                 string questions) =>
+                    questionTool.AskAsync(questions),
+                "question",
+                "Ask the user questions to gather preferences, clarify instructions, or get decisions. " +
+                "Options should be concise (1-5 word labels). Put recommended option first with '(Recommended)'. " +
+                "Custom answers are always allowed, so don't include 'Other' options."));
+        }
+
+        // plan_exit 工具
+        if (enabled.Contains("plan_exit") && planExitCallback != null)
+        {
+            var exitCallback = planExitCallback;
+            tools.Add(AIFunctionFactory.Create(
+                () => exitCallback(),
+                "plan_exit",
+                "Exit plan mode and switch to build mode. " +
+                "Call after you have written a complete plan and are ready to implement. " +
+                "Do NOT call before finalizing the plan or if the user wants to continue planning."));
+        }
+
         // batch 工具注册在最后，因为它需要引用其他工具
         if (enabled.Contains("batch"))
         {
@@ -204,4 +267,13 @@ public static class ToolRegistry
         };
         return CreateAllTools(workingDirectory, readOnlyConfig, permissionChecker);
     }
+
+    /// <summary>
+    /// 获取完整默认工具列表 (包含新增工具)
+    /// </summary>
+    public static List<string> GetDefaultToolList() => new()
+    {
+        "read", "write", "edit", "bash", "grep", "glob", "ls",
+        "apply_patch", "todoread", "todowrite", "question"
+    };
 }
