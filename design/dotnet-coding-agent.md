@@ -27,7 +27,7 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        Agent 核心层                                   │
 │  ┌─────────────────────────────────────────────────────────────────┐│
-│  │  CodingAgent - 基于 Semantic Kernel ChatCompletionAgent         ││
+│  │  CodingAgent - 基于 Microsoft.AgentFramework IAgent             ││
 │  │  - 消息管理 (会话历史)                                           ││
 │  │  - 干预机制 (steer/followUp)                                    ││
 │  │  - 上下文压缩                                                   ││
@@ -44,20 +44,98 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │                       LLM 提供商层                                    │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │
-│  │  MiniMax     │  │   Zhipu     │  │   Others    │            │
-│  │  Provider    │  │   Provider  │  │   (SK)     │            │
+│  │  Zhipu       │  │  MiniMax    │  │  Qianwen    │            │
+│  │  (GLM)       │  │  Provider   │  │  (qwen3)    │            │
 │  └──────────────┘  └──────────────┘  └──────────────┘            │
 └────────────────────────────┬────────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      Semantic Kernel                                  │
-│              (ChatCompletionAgent + KernelFunction)                 │
+│                   Microsoft.AgentFramework                             │
+│              (IAgent + MessagePipeline + TurnContext)               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                   Microsoft.AgentFramework                             │
+│              (IAgent + MessagePipeline + TurnContext)               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 1.2 项目结构
 
+```
+dotnet-coding-agent/
+├── src/
+│   ├── DotnetCodingAgent.sln
+│   │
+│   ├── cli/                          # CLI 入口
+│   │   ├── Program.cs
+│   │   ├── Commands/
+│   │   │   ├── InteractiveCommand.cs
+│   │   │   ├── ModelCommand.cs
+│   │   │   ├── SessionCommand.cs
+│   │   │   └── SettingsCommand.cs
+│   │   └── Options/
+│   │
+│   ├── tui/                          # 终端 UI (Terminal.Gui)
+│   │   ├── MortyApp.cs               # 主应用窗口
+│   │   ├── Views/
+│   │   │   ├── MessageListView.cs
+│   │   │   ├── InputView.cs
+│   │   │   └── StatusBarView.cs
+│   │   └── Program.cs
+│   │
+│   ├── agent/                        # Agent 核心
+│   │   ├── CodingAgent.cs           # 主 Agent 类
+│   │   ├── AgentOptions.cs
+│   │   ├── SessionManager.cs       # 会话管理
+│   │   ├── ContextCompactor.cs     # 上下文压缩
+│   │   └── Events/
+│   │       └── AgentEvent.cs
+│   │
+│   ├── tools/                        # 工具实现
+│   │   ├── ITool.cs
+│   │   ├── ReadFileTool.cs
+│   │   ├── WriteFileTool.cs
+│   │   ├── EditFileTool.cs
+│   │   ├── BashTool.cs
+│   │   ├── GrepTool.cs
+│   │   ├── FindTool.cs
+│   │   └── ListDirectoryTool.cs
+│   │
+│   ├── llm/                          # LLM 提供商
+│   │   ├── ILlmProvider.cs
+│   │   ├── ZhipuProvider.cs
+│   │   ├── MiniMaxProvider.cs
+│   │   ├── QianwenProvider.cs
+│   │   └── ProviderFactory.cs
+│   │
+│   └── config/                       # 配置管理
+│       ├── ConfigLoader.cs
+│       ├── ConfigOptions.cs
+│       ├── ConfigValidator.cs
+│       └── McpConfig.cs
+│
+│   └── auth/                          # 凭证管理
+│       ├── AuthManager.cs
+│       ├── AuthStore.cs
+│       └── AuthCommands.cs
+│
+├── docs/
+├── tests/
+└── README.md
+```
+│
+├── docs/
+├── tests/
+└── README.md
+```
+
+### 1.3 配置文件位置
+
+```
+~/.config/morty/morty.json    # 用户配置 (默认)
+~/.morty/sessions/            # 会话存储
 ```
 dotnet-coding-agent/
 ├── src/
@@ -101,8 +179,9 @@ dotnet-coding-agent/
 │   │
 │   └── llm/                          # LLM 提供商
 │       ├── ILlmProvider.cs
-│       ├── MiniMaxProvider.cs
 │       ├── ZhipuProvider.cs
+│       ├── MiniMaxProvider.cs
+│       ├── QianwenProvider.cs
 │       └── ProviderFactory.cs
 │
 ├── docs/
@@ -118,10 +197,10 @@ dotnet-coding-agent/
 
 | 层级 | 技术选型 | 说明 |
 |------|---------|------|
-| **Agent 框架** | Semantic Kernel | `ChatCompletionAgent` |
-| **LLM 调用** | Semantic Kernel + 自定义 Provider | 支持 MiniMax/智谱 |
-| **TUI** | Spectre.Console + 自定义渲染 | 差异化渲染 |
-| **CLI** | System.CommandLine 或 Spectre.Console | 命令行解析 |
+| **Agent 框架** | Microsoft.AgentFramework | 基于 `IAgent` + `MessagePipeline` |
+| **LLM 调用** | Microsoft.AgentFramework + 自定义 Provider | 支持 GLM/MiniMax/qwen3 |
+| **TUI** | Terminal.Gui | 成熟 Linux TUI 框架 (10.8k stars) |
+| **CLI** | System.CommandLine | 命令行解析 |
 | **依赖注入** | Microsoft.Extensions.DependencyInjection | |
 | **序列化** | System.Text.Json | |
 
@@ -129,11 +208,13 @@ dotnet-coding-agent/
 
 ```xml
 <!-- 核心依赖 -->
-<PackageReference Include="Microsoft.SemanticKernel" Version="1.x" />
-<PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.x" />
+<PackageReference Include="Microsoft.AgentFramework" Version="0.1.x" />
+
+<!-- MCP -->
+<PackageReference Include="ModelContextProtocol" Version="0.1.x" />
 
 <!-- TUI -->
-<PackageReference Include="Spectre.Console" Version="0.49.x" />
+<PackageReference Include="Terminal.Gui" Version="2.0.x" />
 
 <!-- CLI -->
 <PackageReference Include="System.CommandLine" Version="2.0.x" />
@@ -154,9 +235,41 @@ dotnet-coding-agent/
 
 ### 3.1 LLM 提供商 (重点)
 
-由于 Semantic Kernel 默认不支持 MiniMax 和智谱，需要实现自定义 Provider。
+支持三个主要的 LLM 提供商：智谱 (GLM)、MiniMax、百炼 (千问3)。
 
-#### 3.1.1 MiniMax Provider
+#### 3.1.1 Zhipu (智谱) Provider
+
+```csharp
+/// <summary>
+/// 智谱 LLM 提供商
+/// 
+/// API 特点:
+/// - baseUrl: https://open.bigmodel.cn/api/paas/v4
+/// - 需要 API Key 认证
+/// - 支持流式输出
+/// - GLM-4/GLM-4-Vision 支持工具调用
+/// </summary>
+public class ZhipuProvider : ILlmProvider
+{
+    // API 端点
+    // - Chat: POST https://open.bigmodel.cn/api/paas/v4/chat/completions
+    // - Models: GET https://open.bigmodel.cn/api/paas/v4/models
+    
+    // 认证方式
+    // Header: Authorization: Bearer <api_key>
+    
+    // 工具调用
+    // 使用 function_call 格式
+    
+    // 支持模型
+    // - glm-4
+    // - glm-4-flash
+    // - glm-4-plus
+    // - glm-4v-plus (视觉)
+}
+```
+
+#### 3.1.2 MiniMax Provider
 
 ```csharp
 /// <summary>
@@ -184,6 +297,11 @@ public class MiniMaxProvider : ILlmProvider
     // 认证方式
     // Header: Authorization: Bearer <签名>
     // Header: X-Minimax-Api-Version: 2024-05-01
+    
+    // 支持模型
+    // - MiniMax-M2
+    // - MiniMax-M2.1
+    // - MiniMax-Text-01
 }
 ```
 
@@ -192,29 +310,58 @@ public class MiniMaxProvider : ILlmProvider
 - 流式响应解析
 - 工具调用格式适配
 
-#### 3.1.2 Zhipu (智谱) Provider
+#### 3.1.3 Qianwen (百炼/千问) Provider
 
 ```csharp
 /// <summary>
-/// 智谱 LLM 提供商
+/// 百炼千问 LLM 提供商
 /// 
 /// API 特点:
-/// - baseUrl: https://open.bigmodel.cn/api/paas/v4
+/// - baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
 /// - 需要 API Key 认证
 /// - 支持流式输出
-/// - GLM-4 支持工具调用
+/// - qwen3 支持工具调用 (function call)
 /// </summary>
-public class ZhipuProvider : ILlmProvider
+public class QianwenProvider : ILlmProvider
 {
     // API 端点
-    // - Chat: POST https://open.bigmodel.cn/api/paas/v4/chat/completions
-    // - Models: GET https://open.bigmodel.cn/api/paas/v4/models
+    // - Chat: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+    // - Models: GET https://dashscope.aliyuncs.com/api/v1/models
     
     // 认证方式
     // Header: Authorization: Bearer <api_key>
     
     // 工具调用
     // 使用 function_call 格式
+    
+    // 支持模型
+    // - qwen-turbo
+    // - qwen-plus
+    // - qwen-max
+    // - qwen-long
+    // - qwen2.5 系列
+    // - qwen2.5-vl 系列 (视觉)
+}
+```
+
+#### 3.1.4 Provider 工厂
+
+```csharp
+/// <summary>
+/// LLM Provider 工厂
+/// </summary>
+public class ProviderFactory
+{
+    public static ILlmProvider Create(string providerName, string apiKey, string? baseUrl = null)
+    {
+        return providerName.ToLower() switch
+        {
+            "zhipu" or "glm" => new ZhipuProvider(apiKey, baseUrl),
+            "minimax" => new MiniMaxProvider(apiKey, baseUrl),
+            "qianwen" or "qwen" or "百炼" => new QianwenProvider(apiKey, baseUrl),
+            _ => throw new NotSupportedException($"不支持的 LLM 提供商: {providerName}")
+        };
+    }
 }
 ```
 
@@ -224,7 +371,7 @@ public class ZhipuProvider : ILlmProvider
 /// <summary>
 /// Coding Agent 主类
 /// 
-/// 基于 Semantic Kernel 的 ChatCompletionAgent 构建，
+/// 基于 Microsoft.AgentFramework 的 IAgent 构建，
 /// 添加了 coding agent 特有的功能:
 /// - 会话管理
 /// - 干预机制
@@ -233,11 +380,11 @@ public class ZhipuProvider : ILlmProvider
 /// </summary>
 public class CodingAgent
 {
-    private readonly ChatCompletionAgent _agent;
-    private readonly Kernel _kernel;
+    private readonly IAgent _agent;
+    private readonly MessagePipeline _pipeline;
     private readonly SessionManager _sessionManager;
     private readonly ContextCompactor _compactor;
-    private readonly List<KernelFunction> _tools;
+    private readonly List<AgentTool> _tools;
     
     // 消息队列
     private readonly ConcurrentQueue<ChatMessageContent> _steeringQueue;
@@ -336,6 +483,9 @@ public class SessionManager
 ### 3.4 上下文压缩
 
 ```csharp
+### 3.3 上下文压缩
+
+```csharp
 /// <summary>
 /// 上下文压缩器
 /// 
@@ -349,21 +499,21 @@ public class ContextCompactor
     /// <summary>
     /// 执行上下文压缩
     /// </summary>
-    public async Task<ChatHistory> CompressAsync(
-        ChatHistory history,
+    public async Task<MessageList> CompressAsync(
+        MessageList messages,
         int maxTokens,
-        Kernel kernel,
+        IAgent agent,
         CancellationToken ct = default);
     
     /// <summary>
     /// 估算 token 数量
     /// </summary>
-    public int EstimateTokens(ChatMessageContent message);
+    public int EstimateTokens(Message message);
     
     /// <summary>
     /// 生成压缩提示
     /// </summary>
-    public string BuildCompressionPrompt(ChatHistory oldMessages);
+    public string BuildCompressionPrompt(MessageList oldMessages);
 }
 ```
 
@@ -371,9 +521,9 @@ public class ContextCompactor
 
 ## 4. 工具系统
 
-### 4.1 工具定义
+### 4.1 内置工具
 
-使用 Semantic Kernel 的 `KernelFunction` 属性定义工具：
+使用 Microsoft.AgentFramework 的 `AgentTool` 特性定义工具：
 
 ```csharp
 /// <summary>
@@ -383,9 +533,8 @@ public class FileTools
 {
     private readonly string _workingDirectory;
     
-    [KernelFunction]
+    [AgentTool]
     [Description("读取文件内容")]
-    [ParameterDescription("path", "文件的完整路径")]
     public async Task<string> Read(
         [Description("文件路径")] string path)
     {
@@ -397,10 +546,8 @@ public class FileTools
         return await File.ReadAllTextAsync(fullPath);
     }
     
-    [KernelFunction]
+    [AgentTool]
     [Description("写入文件内容")]
-    [ParameterDescription("path", "文件路径")]
-    [ParameterDescription("content", "文件内容")]
     public async Task<string> Write(
         [Description("文件路径")] string path,
         [Description("文件内容")] string content)
@@ -418,11 +565,8 @@ public class FileTools
         return $"已写入文件: {path}";
     }
     
-    [KernelFunction]
+    [AgentTool]
     [Description("编辑文件内容")]
-    [ParameterDescription("path", "文件路径")]
-    [ParameterDescription("oldString", "需要替换的原文")]
-    [ParameterDescription("newString", "替换后的内容")]
     public async Task<string> Edit(
         [Description("文件路径")] string path,
         [Description("需要替换的原文")] string oldString,
@@ -447,9 +591,8 @@ public class SystemTools
 {
     private readonly string _workingDirectory;
     
-    [KernelFunction]
+    [AgentTool]
     [Description("执行 bash 命令")]
-    [ParameterDescription("command", "要执行的命令")]
     public async Task<string> Bash(
         [Description("要执行的 bash 命令")] string command)
     {
@@ -474,10 +617,8 @@ public class SystemTools
         return string.IsNullOrEmpty(error) ? output : $"输出:\n{output}\n错误:\n{error}";
     }
     
-    [KernelFunction]
+    [AgentTool]
     [Description("搜索文件内容")]
-    [ParameterDescription("pattern", "正则表达式模式")]
-    [ParameterDescription("path", "搜索路径 (可选)")]
     public async Task<string> Grep(
         [Description("正则表达式模式")] string pattern,
         [Description("搜索路径，默认当前目录")] string? path = null)
@@ -488,10 +629,8 @@ public class SystemTools
         return result;
     }
     
-    [KernelFunction]
+    [AgentTool]
     [Description("查找文件")]
-    [ParameterDescription("pattern", "文件名模式")]
-    [ParameterDescription("path", "搜索路径 (可选)")]
     public async Task<string> Find(
         [Description("文件名模式，支持 * 和 ?")] string pattern,
         [Description("搜索路径，默认当前目录")] string? path = null)
@@ -501,9 +640,8 @@ public class SystemTools
         return result;
     }
     
-    [KernelFunction]
+    [AgentTool]
     [Description("列出目录内容")]
-    [ParameterDescription("path", "目录路径 (可选)")]
     public async Task<string> Ls(
         [Description("目录路径，默认当前目录")] string? path = null)
     {
@@ -514,75 +652,175 @@ public class SystemTools
 }
 ```
 
+### 4.2 MCP 工具
+
+支持通过 MCP (Model Context Protocol) 扩展工具集，与 opencode 配置格式兼容。
+
+```csharp
+/// <summary>
+/// MCP 工具管理器
+/// </summary>
+public class McpToolManager
+{
+    private readonly Dictionary<string, IMcpClient> _clients = new();
+    
+    /// <summary>
+    /// 初始化 MCP 客户端
+    /// </summary>
+    public async Task InitializeAsync(McpConfig config, CancellationToken ct = default)
+    {
+        foreach (var (name, server) in config.Servers)
+        {
+            if (!server.Enabled) continue;
+            
+            var client = server.Type switch
+            {
+                "local" or "stdio" => new StdioMcpClient(server.Command, server.Args),
+                "sse" => new SseMcpClient(server.Url),
+                _ => throw new NotSupportedException($"不支持的 MCP 类型: {server.Type}")
+            };
+            
+            await client.ConnectAsync(ct);
+            _clients[name] = client;
+        }
+    }
+    
+    /// <summary>
+    /// 获取所有 MCP 工具
+    /// </summary>
+    public IEnumerable<AgentTool> GetTools()
+    {
+        foreach (var (name, client) in _clients)
+        {
+            foreach (var tool in client.Tools)
+            {
+                yield return tool.WithName($"{name}_{tool.Name}");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 调用 MCP 工具
+    /// </summary>
+    public async Task<string> InvokeAsync(string toolName, Dictionary<string, object> args, CancellationToken ct = default);
+}
+
+/// <summary>
+/// MCP 配置
+/// </summary>
+public class McpConfig
+{
+    public Dictionary<string, McpServerConfig> Servers { get; set; } = new();
+}
+
+public class McpServerConfig
+{
+    public string Type { get; set; } = "stdio";
+    public string? Command { get; set; }
+    public string[]? Args { get; set; }
+    public string? Url { get; set; }
+    public bool Enabled { get; set; } = true;
+}
+```
+
+**MCP 配置示例**:
+```json
+{
+  "mcp": {
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@latest"],
+      "enabled": true
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/david/workspace"]
+    }
+  }
+}
+```
+
 ---
 
 ## 5. TUI 设计
 
-### 5.1 终端渲染引擎
+使用 Terminal.Gui 框架，它是 .NET 中成熟的跨平台 TUI 库。
+
+### 5.1 应用架构
 
 ```csharp
-/// <summary>
-/// 差异化 TUI 渲染引擎
-/// 
-/// 核心思路:
-/// 1. 记录上一帧的输出
-/// 2. 计算当前帧与上一帧的差异
-/// 3. 只更新变化的行 (使用 ANSI 转义序列)
-/// </summary>
-public class TuiEngine
+using Terminal.Gui.App;
+using Terminal.Gui.ViewBase;
+using Terminal.Gui.Views;
+
+public class MortyApp : Window
 {
-    private readonly List<string> _previousFrame;
-    private readonly int _terminalHeight;
-    private readonly int _terminalWidth;
+    private readonly MessageListView _messageList;
+    private readonly InputView _inputView;
+    private readonly StatusBarView _statusBar;
     
-    /// <summary>
-    /// 渲染帧
-    /// </summary>
-    public void Render(Frame frame);
-    
-    /// <summary>
-    /// 计算差异并输出
-    /// </summary>
-    private void RenderDiff(List<string> newFrame);
-    
-    /// <summary>
-    /// 清除屏幕
-    /// </summary>
-    public void Clear();
-    
-    /// <summary>
-    /// 移动光标
-    /// </summary>
-    public void MoveCursor(int row, int col);
+    public MortyApp()
+    {
+        Title = "morty - AI Coding Assistant";
+        
+        _messageList = new MessageListView();
+        _inputView = new InputView();
+        _statusBar = new StatusBarView();
+        
+        Add(_messageList);
+        Add(_inputView);
+        Add(_statusBar);
+    }
+}
+
+public class Program
+{
+    public static void Main()
+    {
+        using var app = Application.Create();
+        app.Init();
+        
+        using var window = new MortyApp();
+        app.Run(window);
+    }
 }
 ```
 
 ### 5.2 组件设计
 
+基于 Terminal.Gui 的视图组件：
+
 ```csharp
 /// <summary>
-/// 消息列表组件
+/// 消息列表视图
 /// </summary>
-public class MessageListComponent : IComponent
+public class MessageListView : View
 {
-    public void Render(MessageList messages, int startRow, int height);
+    private readonly List<Message> _messages = new();
+    
+    public void AddMessage(Message message);
+    public void Clear();
+    
+    public override void Redraw(NormalizeCollection<View> bounds);
 }
 
 /// <summary>
-/// 编辑器组件
+/// 输入视图
 /// </summary>
-public class EditorComponent : IComponent
+public class InputView : View
 {
-    public string Content { get; set; }
-    public int CursorPosition { get; set; }
+    public string Text { get; set; }
     public event EventHandler<string>? OnSubmit;
     public event EventHandler? OnCancel;
+    
+    public override bool ProcessKey(KeyEvent keyEvent);
 }
 
 /// <summary>
-/// 状态栏组件
+/// 状态栏视图
 /// </summary>
-public class StatusBarComponent : IComponent
+public class StatusBarView : View
 {
     public string WorkingDirectory { get; set; }
     public string SessionName { get; set; }
@@ -591,6 +829,15 @@ public class StatusBarComponent : IComponent
     public decimal Cost { get; set; }
 }
 ```
+
+### 5.3 Terminal.Gui 特性 (Linux 优先)
+
+- **平台**: 重点支持 Linux (macOS 可选，暂不支持 Windows)
+- **丰富组件**: Label, Button, TextField, TextView, ListView, Table, TreeView 等
+- **布局系统**: 绝对定位 + 相对定位 (Pos, Dim)
+- **键盘处理**: 完整的按键事件处理
+- **主题支持**: 自定义颜色和样式
+- **TrueColor**: 24 位颜色支持
 
 ---
 
@@ -607,12 +854,16 @@ public class StatusBarComponent : IComponent
 | `morty -c` | 继续会话 |
 | `morty -r` | 恢复会话 |
 | `morty --session <id>` | 指定会话 |
+| `morty auth login <provider>` | 登录 LLM 提供商 |
+| `morty auth list` | 列出已登录的提供商 |
+| `morty auth logout <provider>` | 登出提供商 |
 
 ### 6.2 交互模式命令
 
 | 命令 | 说明 |
 |------|------|
 | `/model` | 切换模型 |
+| `/auth` | 管理认证 |
 | `/settings` | 设置 |
 | `/new` | 新建会话 |
 | `/resume` | 恢复会话 |
@@ -661,57 +912,244 @@ public class StatusBarComponent : IComponent
 
 | 模块 | pi-mono (TypeScript) | dotnet-coding-agent |
 |------|---------------------|-------------------|
-| **Agent 框架** | 自实现 | Semantic Kernel |
-| **LLM 调用** | 自实现 20+ | SK + 自定义 2 |
-| **TUI** | 自实现 (差异化渲染) | Spectre.Console + 自定义 |
-| **工具系统** | TypeBox + 自定义 | KernelFunction |
+| **Agent 框架** | 自实现 | Microsoft.AgentFramework |
+| **LLM 调用** | 自实现 20+ | MAF + 自定义 3 (GLM/MiniMax/qwen3) |
+| **TUI** | 自实现 (差异化渲染) | Terminal.Gui |
+| **工具系统** | TypeBox + 自定义 | AgentTool |
 | **会话格式** | JSONL | JSONL (兼容) |
 
 ---
 
 ## 9. 关键挑战
 
-1. **MiniMax/智谱 API 兼容性**
+1. **Microsoft.AgentFramework 成熟度**
+   - 框架相对较新，API 可能变化
+   - 文档和社区资源有限
+
+2. **MiniMax/智谱 API 兼容性**
    - 需要适配其工具调用格式
    - API 签名认证 (MiniMax)
-   
-2. **流式输出与 TUI**
+
+3. **流式输出与 TUI**
    - 需要正确处理 Server-Sent Events
    - 差异化渲染避免闪烁
 
-3. **上下文压缩**
+4. **上下文压缩**
    - 中文总结需要合适的提示词
    - 保留关键信息 (文件修改、决策)
 
-4. **Windows 兼容性**
-   - ANSI 转义序列在不同终端的兼容性
+5. **终端兼容性**
+   - ANSI 转义序列在不同 Linux 终端的兼容性
+   - 终端类型检测 (vt100, xterm, etc.)
 
 ---
 
-## 10. 附录
+## 10. 配置文件
 
-### A. 配置示例
+配置文件位于 `~/.config/morty/morty.json`，仿照 opencode 的配置方式。
+
+**Key 存储方式**：参考 opencode，使用独立文件存储 API Key，不在配置文件中明文存储。
+
+- 凭证文件：`~/.local/share/morty/auth.json`
+- 登录命令：`morty auth login <provider>`
+
+### A. 完整配置示例
 
 ```json
 {
-  "model": "minimax/MiniMax-M2.1",
-  "thinking": "medium",
-  "tools": ["read", "write", "edit", "bash", "grep", "find", "ls"],
-  "autoCompact": true,
-  "compactThreshold": 0.8,
-  "sessionDir": "~/.morty/sessions"
+  "$schema": "https://morty.dev/config.json",
+  "provider": {
+    "type": "zhipu",
+    "model": "glm-4-plus"
+  },
+  "tools": {
+    "enabled": ["read", "write", "edit", "bash", "grep", "find", "ls"],
+    "bash": {
+      "allowedCommands": ["git", "npm", "dotnet", "cargo", "pnpm", "yarn"],
+      "timeout": 300
+    }
+  },
+  "mcp": {
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@latest"],
+      "enabled": true
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/david/workspace"]
+    }
+  },
+  "session": {
+    "dir": "~/.morty/sessions",
+    "autoCompact": true,
+    "compactThreshold": 0.8
+  },
+  "tui": {
+    "theme": "dark",
+    "syntaxHighlighting": true
+  }
 }
 ```
 
-### B. 环境变量
+### A.1 凭证存储
+
+凭证单独存储在 `~/.local/share/morty/auth.json`，参考 opencode：
+
+```json
+{
+  "zhipu": {
+    "type": "api",
+    "key": "your_api_key_here"
+  },
+  "minimax": {
+    "type": "api", 
+    "key": "your_api_key_here"
+  },
+  "qianwen": {
+    "type": "api",
+    "key": "your_api_key_here"
+  }
+}
+```
+
+**管理命令**:
+```bash
+morty auth login zhipu      # 登录智谱
+morty auth login minimax   # 登录 MiniMax
+morty auth login qianwen   # 登录百炼
+morty auth list            # 列出已登录的 provider
+morty auth logout zhipu    # 登出
+```
+
+### B. 配置项说明
+
+| 配置项 | 类型 | 说明 | 默认值 |
+|--------|------|------|--------|
+| `provider.type` | string | LLM 提供商: `zhipu`, `minimax`, `qianwen` | `zhipu` |
+| `provider.model` | string | 模型名称 | `glm-4-plus` |
+| `provider.baseUrl` | string | 自定义 API 地址 | - |
+| `tools.enabled` | string[] | 启用的工具 | 全部 |
+| `tools.bash.allowedCommands` | string[] | 允许的 bash 命令 | 全部 |
+| `tools.bash.timeout` | number | 命令超时(秒) | 300 |
+| `mcp.<name>.type` | string | MCP 类型: `local`, `stdio`, `sse` | - |
+| `mcp.<name>.command` | string | 执行命令 | - |
+| `mcp.<name>.args` | string[] | 命令参数 | - |
+| `mcp.<name>.enabled` | bool | 是否启用 | `true` |
+| `session.dir` | string | 会话存储目录 | `~/.morty/sessions` |
+| `session.autoCompact` | bool | 自动压缩上下文 | `true` |
+| `session.compactThreshold` | number | 压缩阈值 (0-1) | `0.8` |
+| `tui.theme` | string | 主题: `dark`, `light` | `dark` |
+| `tui.syntaxHighlighting` | bool | 语法高亮 | `true` |
+
+**注意**: API Key 不在配置文件中指定，通过 `morty auth login` 命令登录后存储在 `~/.local/share/morty/auth.json`
+
+### C. 环境变量
 
 ```bash
-# MiniMax
-export MINIMAX_API_KEY="your_key"
-
-# Zhipu
-export ZHIPU_API_KEY="your_key"
-
-# 配置
-export MORTY_CONFIG_DIR="~/.morty"
+# 配置文件位置
+export MORTY_CONFIG_DIR="~/.config/morty"
 ```
+
+### D. 配置文件优先级
+
+1. `~/.config/morty/morty.json` (默认)
+2. 环境变量 `MORTY_CONFIG_DIR/morty.json`
+3. 项目根目录 `.morty.json`
+
+### E. 凭证文件位置
+
+- 凭证存储: `~/.local/share/morty/auth.json`
+- 登录状态查询: `morty auth list`
+
+支持的模型:
+- 智谱: `glm-4`, `glm-4-flash`, `glm-4-plus`, `glm-4v-plus`
+- MiniMax: `MiniMax-M2`, `MiniMax-M2.1`
+- 百炼: `qwen-turbo`, `qwen-plus`, `qwen-max`, `qwen-long`, `qwen2.5-vl`
+
+---
+
+## 11. 凭证管理系统
+
+### 11.1 设计思路
+
+参考 opencode 的凭证管理方式：
+1. API Key 不存储在配置文件中
+2. 使用 `morty auth login` 命令交互式输入 Key
+3. 凭证安全存储在 `~/.local/share/morty/auth.json`
+
+### 11.2 凭证管理命令
+
+```bash
+# 登录 (交互式输入 API Key)
+morty auth login zhipu
+morty auth login minimax
+morty auth login qianwen
+
+# 查看已登录的提供商
+morty auth list
+
+# 登出
+morty auth logout zhipu
+```
+
+### 11.3 核心实现
+
+```csharp
+/// <summary>
+/// 凭证管理器
+/// </summary>
+public class AuthManager
+{
+    private readonly string _authFilePath;
+    
+    public AuthManager()
+    {
+        _authFilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "morty", "auth.json");
+    }
+    
+    /// <summary>
+    /// 登录提供商
+    /// </summary>
+    public async Task LoginAsync(string provider, string apiKey);
+    
+    /// <summary>
+    /// 获取 API Key
+    /// </summary>
+    public string? GetApiKey(string provider);
+    
+    /// <summary>
+    /// 列出所有已登录的提供商
+    /// </summary>
+    public IEnumerable<string> ListProviders();
+    
+    /// <summary>
+    /// 登出提供商
+    /// </summary>
+    public Task LogoutAsync(string provider);
+}
+```
+
+### 11.4 凭证文件格式
+
+`~/.local/share/morty/auth.json`:
+```json
+{
+  "zhipu": {
+    "type": "api",
+    "key": "your_api_key"
+  },
+  "minimax": {
+    "type": "api",
+    "key": "your_api_key"
+  },
+  "qianwen": {
+    "type": "api",
+    "key": "your_api_key"
+  }
+}
+```
+
