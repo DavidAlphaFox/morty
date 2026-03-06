@@ -30,6 +30,9 @@ public class ProviderConfig
 
     [JsonPropertyName("baseUrl")]
     public string? BaseUrl { get; set; }
+
+    [JsonPropertyName("models")]
+    public List<string>? Models { get; set; }
 }
 
 public class ToolsConfig

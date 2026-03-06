@@ -123,18 +123,31 @@ class Program
     {
         var provider = args.Length > 0 ? args[0] : null;
 
-        var models = provider?.ToLower() switch
+        _configLoader ??= new ConfigLoader();
+        var config = _configLoader.Load();
+
+        IEnumerable<string> models;
+
+        if (!string.IsNullOrEmpty(provider) && config.Provider?.Models?.Count > 0)
         {
-            "zhipu" => new[] { "glm-5", "glm-4.7", "glm-4.5-air", "glm-4", "glm-4-flash", "glm-4-plus", "glm-4v-plus" },
-            "minimax" => new[] { "MiniMax-M2", "MiniMax-M2.1" },
-            "qianwen" => new[] { "qwen-turbo", "qwen-plus", "qwen-max", "qwen-long", "qwen2.5-vl" },
-            _ => new[]
+            models = config.Provider.Models;
+        }
+        else
+        {
+            var providerType = provider ?? config.Provider?.Type ?? "zhipu";
+            models = providerType.ToLower() switch
             {
-                "glm-4", "glm-4-flash", "glm-4-plus",
-                "MiniMax-M2", "MiniMax-M2.1",
-                "qwen-turbo", "qwen-plus", "qwen-max"
-            }
-        };
+                "zhipu" => new[] { "glm-5", "glm-4.7", "glm-4.5-air", "glm-4", "glm-4-flash", "glm-4-plus", "glm-4v-plus" },
+                "minimax" => new[] { "MiniMax-M2", "MiniMax-M2.1" },
+                "qianwen" => new[] { "qwen-turbo", "qwen-plus", "qwen-max", "qwen-long", "qwen2.5-vl" },
+                _ => new[]
+                {
+                    "glm-5", "glm-4.7", "glm-4.5-air",
+                    "MiniMax-M2", "MiniMax-M2.1",
+                    "qwen-turbo", "qwen-plus", "qwen-max"
+                }
+            };
+        }
 
         foreach (var m in models)
         {
